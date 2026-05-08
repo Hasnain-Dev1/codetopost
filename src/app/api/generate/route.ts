@@ -1,44 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import satori from "satori";
-import fs from "fs"; // Static import fixes VS Code error
 import { codeToTokens } from "shiki";
 
-// Initialize Groq
 const groq = new Groq();
-
-// --- THE ULTIMATE FONT FIX ---
-let fontData: Buffer | null = null;
-async function getSystemFont() {
-  if (!fontData) {
-    // 1. Try local Windows fonts first (wrapped in try/catch so Vercel doesn't crash)
-    try {
-      const possibleFonts = [
-        "C:\\Windows\\Fonts\\consola.ttf",
-        "C:\\Windows\\Fonts\\arial.ttf",
-      ];
-      for (const fontPath of possibleFonts) {
-        if (fs.existsSync(fontPath)) {
-          fontData = fs.readFileSync(fontPath);
-          break;
-        }
-      }
-    } catch (e) {
-      // Ignore errors if fs fails (e.g. in restricted environments)
-    }
-
-    // 2. Fetch directly from CDN (Works instantly on Vercel Linux!)
-    if (!fontData) {
-      const res = await fetch("https://cdn.jsdelivr.net/gh/JetBrains/JetBrainsMono@master/fonts/ttf/JetBrainsMono-Regular.ttf");
-      if (!res.ok) throw new Error("Failed to download font from CDN");
-      const arrayBuffer = await res.arrayBuffer();
-      fontData = Buffer.from(arrayBuffer);
-    }
-
-    if (!fontData) throw new Error("Could not load any fonts");
-  }
-  return fontData;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,7 +22,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// --- HELPER 1: GROQ AI CAPTION ---
 async function generateCaption(code: string, language: string, platform: string) {
   const toneInstruction = platform === "twitter" 
     ? "Keep it under 280 characters. Punchy, high engagement." 
@@ -75,10 +39,7 @@ async function generateCaption(code: string, language: string, platform: string)
   return chatCompletion.choices[0]?.message?.content || "Could not generate caption.";
 }
 
-// --- HELPER 2: SATORI IMAGE ---
 async function generateImage(code: string, language: string) {
-  const systemFont = getSystemFont();
-
   const result = await codeToTokens(code, { 
     lang: language as any, 
     theme: 'github-dark' 
@@ -113,7 +74,6 @@ async function generateImage(code: string, language: string) {
           overflow: "hidden",
         },
         children: [
-          // Top Bar
           {
             type: "div",
             props: {
@@ -131,12 +91,11 @@ async function generateImage(code: string, language: string) {
                   { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#febc2e" } } },
                   { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#28c840" } } },
                 ]}},
-                { type: "span", props: { style: { color: "#8b949e", fontSize: "14px", fontFamily: "JetBrains Mono" }, children: `script.${language}` } },
-                { type: "span", props: { style: { color: "#8b949e", fontSize: "12px", fontFamily: "JetBrains Mono" }, children: "CodeToPost" } }
+                { type: "span", props: { style: { color: "#8b949e", fontSize: "14px", fontFamily: "monospace" }, children: `script.${language}` } },
+                { type: "span", props: { style: { color: "#8b949e", fontSize: "12px", fontFamily: "monospace" }, children: "CodeToPost" } }
               ]
             }
           },
-          // Code Box
           {
             type: "div",
             props: {
@@ -144,7 +103,7 @@ async function generateImage(code: string, language: string) {
                 padding: "24px", 
                 fontSize: "18px", 
                 lineHeight: "1.6", 
-                fontFamily: "JetBrains Mono",
+                fontFamily: "monospace",
                 display: "flex",
                 flexDirection: "column",
                 whiteSpace: "pre" 
@@ -158,7 +117,7 @@ async function generateImage(code: string, language: string) {
     {
       width: 800,
       height: 600,
-      fonts: [{ name: "JetBrains Mono", data: systemFont, weight: 400, style: "normal" }],
+      fonts: [{ name: "monospace", data: Buffer.from(""), weight: 400, style: "normal" }],
     } as any
   );
 
