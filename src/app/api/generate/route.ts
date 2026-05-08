@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import satori from "satori";
 import fs from "fs";
+import path from "path";
 import { codeToTokens } from "shiki";
 
 // Initialize Groq
 const groq = new Groq();
 
-// --- SATORI FONT FIX (WINDOWS NATIVE) ---
+// --- CROSS-PLATFORM FONT FIX (Windows Local + Vercel Linux) ---
 let fontData: Buffer | null = null;
 function getSystemFont() {
   if (!fontData) {
+    // 1. Try local Windows fonts first
     const possibleFonts = [
       "C:\\Windows\\Fonts\\consola.ttf",
       "C:\\Windows\\Fonts\\arial.ttf",
@@ -21,7 +23,20 @@ function getSystemFont() {
         break;
       }
     }
-    if (!fontData) throw new Error("Could not find Windows fonts");
+
+    // 2. Fall back to NPM font for Vercel (Linux)
+    if (!fontData) {
+      try {
+        const npmFontPath = path.join(process.cwd(), "node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2");
+        if (fs.existsSync(npmFontPath)) {
+          fontData = fs.readFileSync(npmFontPath);
+        }
+      } catch (e) {
+        console.error("NPM font fallback failed:", e);
+      }
+    }
+
+    if (!fontData) throw new Error("Could not load any fonts");
   }
   return fontData;
 }
@@ -66,13 +81,13 @@ async function generateCaption(code: string, language: string, platform: string)
 async function generateImage(code: string, language: string) {
   const systemFont = getSystemFont();
 
-  // 1. Get pure color tokens directly from Shiki (Skips HTML completely!)
+  // 1. Get pure color tokens directly from Shiki
   const result = await codeToTokens(code, { 
     lang: language as any, 
     theme: 'github-dark' 
   });
 
-  // 2. Convert tokens straight to Satori JSON (Tokens is a 2D array!)
+  // 2. Convert tokens straight to Satori JSON
   const parsedCode = result.tokens.map((line: any) => ({
     type: "div",
     props: {
@@ -121,8 +136,8 @@ async function generateImage(code: string, language: string) {
                   { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#febc2e" } } },
                   { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#28c840" } } },
                 ]}},
-                { type: "span", props: { style: { color: "#8b949e", fontSize: "14px", fontFamily: "Consolas" }, children: `script.${language}` } },
-                { type: "span", props: { style: { color: "#8b949e", fontSize: "12px", fontFamily: "Consolas" }, children: "CodeToPost" } }
+                { type: "span", props: { style: { color: "#8b949e", fontSize: "14px", fontFamily: "JetBrains Mono" }, children: `script.${language}` } },
+                { type: "span", props: { style: { color: "#8b949e", fontSize: "12px", fontFamily: "JetBrains Mono" }, children: "CodeToPost" } }
               ]
             }
           },
@@ -134,10 +149,10 @@ async function generateImage(code: string, language: string) {
                 padding: "24px", 
                 fontSize: "18px", 
                 lineHeight: "1.6", 
-                fontFamily: "Consolas",
+                fontFamily: "JetBrains Mono",
                 display: "flex",
                 flexDirection: "column",
-                whiteSpace: "pre",
+                whiteSpace: "pre" // FIX: Keeps spaces intact!
               },
               children: parsedCode
             }
@@ -148,7 +163,7 @@ async function generateImage(code: string, language: string) {
     {
       width: 800,
       height: 600,
-      fonts: [{ name: "Consolas", data: systemFont, weight: 400, style: "normal" }],
+      fonts: [{ name: "JetBrains Mono", data: systemFont, weight: 400, style: "normal" }],
     } as any
   );
 
