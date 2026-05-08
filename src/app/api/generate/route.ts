@@ -46,13 +46,13 @@ async function generateImage(code: string, language: string) {
   });
 
   const parsedCode = result.tokens.map((line: any) => ({
-    type: "div",
+    type: "div" as const,
     props: {
-      style: { display: "flex", lineHeight: "1.6" },
+      style: { display: "flex", lineHeight: "1.6" } as const,
       children: line.map((token: any) => ({
-        type: "span",
+        type: "span" as const,
         props: {
-          style: { color: token.color || "#ffffff" },
+          style: { color: token.color || "#ffffff" } as const,
           children: token.content || " "
         }
       }))
@@ -61,7 +61,7 @@ async function generateImage(code: string, language: string) {
 
   const svg = await satori(
     {
-      type: "div",
+      type: "div" as const,
       props: {
         style: {
           width: "100%",
@@ -72,10 +72,10 @@ async function generateImage(code: string, language: string) {
           borderRadius: "12px",
           padding: "0px",
           overflow: "hidden",
-        },
+        } as const,
         children: [
           {
-            type: "div",
+            type: "div" as const,
             props: {
               style: { 
                 display: "flex", 
@@ -84,20 +84,20 @@ async function generateImage(code: string, language: string) {
                 padding: "16px 24px", 
                 backgroundColor: "#161b22",
                 borderBottom: "1px solid #30363d" 
-              },
+              } as const,
               children: [
-                { type: "div", props: { style: { display: "flex", gap: "8px" }, children: [
-                  { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#ff5f57" } } },
-                  { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#febc2e" } } },
-                  { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#28c840" } } },
+                { type: "div" as const, props: { style: { display: "flex", gap: "8px" } as const, children: [
+                  { type: "div" as const, props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#ff5f57" } as const } },
+                  { type: "div" as const, props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#febc2e" } as const } },
+                  { type: "div" as const, props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#28c840" } as const } },
                 ]}},
-                { type: "span", props: { style: { color: "#8b949e", fontSize: "14px", fontFamily: "monospace" }, children: `script.${language}` } },
-                { type: "span", props: { style: { color: "#8b949e", fontSize: "12px", fontFamily: "monospace" }, children: "CodeToPost" } }
+                { type: "span" as const, props: { style: { color: "#8b949e", fontSize: "14px", fontFamily: "monospace" } as const, children: `script.${language}` } },
+                { type: "span" as const, props: { style: { color: "#8b949e", fontSize: "12px", fontFamily: "monospace" } as const, children: "CodeToPost" } }
               ]
             }
           },
           {
-            type: "div",
+            type: "div" as const,
             props: {
               style: { 
                 padding: "24px", 
@@ -107,7 +107,7 @@ async function generateImage(code: string, language: string) {
                 display: "flex",
                 flexDirection: "column",
                 whiteSpace: "pre" 
-              },
+              } as const,
               children: parsedCode
             }
           }
@@ -117,8 +117,8 @@ async function generateImage(code: string, language: string) {
     {
       width: 800,
       height: 600,
-      fonts: [{ name: "monospace", data: Buffer.from(""), weight: 400, style: "normal" }],
-    } as any
+      fonts: [],
+    }
   );
 
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
