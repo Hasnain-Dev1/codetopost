@@ -1,40 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import satori from "satori";
-import fs from "fs";
-import { createRequire } from "module";
+import fs from "fs"; // Static import fixes VS Code error
 import { codeToTokens } from "shiki";
-
-// Fix for Vercel ESM environments
-const require = createRequire(import.meta.url);
 
 // Initialize Groq
 const groq = new Groq();
 
-// --- ULTIMATE CROSS-PLATFORM FONT FIX ---
+// --- THE ULTIMATE FONT FIX ---
 let fontData: Buffer | null = null;
-function getSystemFont() {
+async function getSystemFont() {
   if (!fontData) {
-    // 1. Try local Windows fonts first
-    const possibleFonts = [
-      "C:\\Windows\\Fonts\\consola.ttf",
-      "C:\\Windows\\Fonts\\arial.ttf",
-    ];
-    for (const fontPath of possibleFonts) {
-      if (fs.existsSync(fontPath)) {
-        fontData = fs.readFileSync(fontPath);
-        break;
+    // 1. Try local Windows fonts first (wrapped in try/catch so Vercel doesn't crash)
+    try {
+      const possibleFonts = [
+        "C:\\Windows\\Fonts\\consola.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+      ];
+      for (const fontPath of possibleFonts) {
+        if (fs.existsSync(fontPath)) {
+          fontData = fs.readFileSync(fontPath);
+          break;
+        }
       }
+    } catch (e) {
+      // Ignore errors if fs fails (e.g. in restricted environments)
     }
 
-    // 2. Fall back to NPM font for Vercel (Linux)
+    // 2. Fetch directly from CDN (Works instantly on Vercel Linux!)
     if (!fontData) {
-      try {
-        const npmFontPath = require.resolve("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2");
-        fontData = fs.readFileSync(npmFontPath);
-      } catch (e) {
-        console.error("NPM font fallback failed");
-      }
+      const res = await fetch("https://cdn.jsdelivr.net/gh/JetBrains/JetBrainsMono@master/fonts/ttf/JetBrainsMono-Regular.ttf");
+      if (!res.ok) throw new Error("Failed to download font from CDN");
+      const arrayBuffer = await res.arrayBuffer();
+      fontData = Buffer.from(arrayBuffer);
     }
 
     if (!fontData) throw new Error("Could not load any fonts");
