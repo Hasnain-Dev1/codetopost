@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import satori from "satori";
 import fs from "fs";
-import path from "path";
+import { createRequire } from "module";
 import { codeToTokens } from "shiki";
+
+// Fix for Vercel ESM environments
+const require = createRequire(import.meta.url);
 
 // Initialize Groq
 const groq = new Groq();
 
-// --- CROSS-PLATFORM FONT FIX (Windows Local + Vercel Linux) ---
+// --- ULTIMATE CROSS-PLATFORM FONT FIX ---
 let fontData: Buffer | null = null;
 function getSystemFont() {
   if (!fontData) {
@@ -27,12 +30,10 @@ function getSystemFont() {
     // 2. Fall back to NPM font for Vercel (Linux)
     if (!fontData) {
       try {
-        const npmFontPath = path.join(process.cwd(), "node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2");
-        if (fs.existsSync(npmFontPath)) {
-          fontData = fs.readFileSync(npmFontPath);
-        }
+        const npmFontPath = require.resolve("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2");
+        fontData = fs.readFileSync(npmFontPath);
       } catch (e) {
-        console.error("NPM font fallback failed:", e);
+        console.error("NPM font fallback failed");
       }
     }
 
@@ -46,7 +47,6 @@ export async function POST(req: NextRequest) {
     const { code, language, platform } = await req.json();
     if (!code) return NextResponse.json({ error: "No code provided" }, { status: 400 });
 
-    // Run both at the exact same time for maximum speed
     const [captionResult, imageDataUri] = await Promise.all([
       generateCaption(code, language, platform),
       generateImage(code, language),
@@ -77,17 +77,15 @@ async function generateCaption(code: string, language: string, platform: string)
   return chatCompletion.choices[0]?.message?.content || "Could not generate caption.";
 }
 
-// --- HELPER 2: SATORI IMAGE (PREMIUM SYNTAX HIGHLIGHTING) ---
+// --- HELPER 2: SATORI IMAGE ---
 async function generateImage(code: string, language: string) {
   const systemFont = getSystemFont();
 
-  // 1. Get pure color tokens directly from Shiki
   const result = await codeToTokens(code, { 
     lang: language as any, 
     theme: 'github-dark' 
   });
 
-  // 2. Convert tokens straight to Satori JSON
   const parsedCode = result.tokens.map((line: any) => ({
     type: "div",
     props: {
@@ -102,7 +100,6 @@ async function generateImage(code: string, language: string) {
     }
   }));
 
-  // 3. Generate the SVG
   const svg = await satori(
     {
       type: "div",
@@ -112,13 +109,13 @@ async function generateImage(code: string, language: string) {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          backgroundColor: "#0d1117", // GitHub Dark BG
+          backgroundColor: "#0d1117",
           borderRadius: "12px",
           padding: "0px",
           overflow: "hidden",
         },
         children: [
-          // Top Bar (Mac dots, filename, branding)
+          // Top Bar
           {
             type: "div",
             props: {
@@ -152,7 +149,7 @@ async function generateImage(code: string, language: string) {
                 fontFamily: "JetBrains Mono",
                 display: "flex",
                 flexDirection: "column",
-                whiteSpace: "pre" // FIX: Keeps spaces intact!
+                whiteSpace: "pre" 
               },
               children: parsedCode
             }
@@ -167,6 +164,5 @@ async function generateImage(code: string, language: string) {
     } as any
   );
 
-  // 4. Return as base64 image string
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }
