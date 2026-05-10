@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFileSync } from "fs";
+import { join } from "path";
 import Groq from "groq-sdk";
 import satori from "satori";
 import { codeToTokens, type BundledLanguage } from "shiki";
@@ -7,19 +9,15 @@ const groq = new Groq();
 
 let fontData: Buffer | null = null;
 
+// FIX 1: Read directly from filesystem instead of fetching via HTTP.
+// This completely eliminates the Vercel 500 error on cold starts.
 async function getSystemFont() {
   if (!fontData) {
     try {
-      // Using an absolute URL is safer for server-side fetching in Next.js
-      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-      const res = await fetch(new URL("/JetBrainsMono.ttf", baseUrl));
-      
-      if (!res.ok) throw new Error("Failed to fetch font file.");
-      const arrayBuffer = await res.arrayBuffer();
-      fontData = Buffer.from(arrayBuffer);
+      fontData = readFileSync(join(process.cwd(), "public", "JetBrainsMono.ttf"));
     } catch (error) {
-      console.error("Font fetch failed:", error);
-      throw new Error("Could not load JetBrainsMono.ttf. Ensure it is in the public folder.");
+      console.error("Font read failed:", error);
+      throw new Error("Could not read JetBrainsMono.ttf. Make sure it is in the /public folder.");
     }
   }
   return fontData;
@@ -28,7 +26,7 @@ async function getSystemFont() {
 export async function POST(req: NextRequest) {
   try {
     const { code, language, platform } = await req.json();
-    
+
     if (!code) {
       return NextResponse.json({ error: "No code provided" }, { status: 400 });
     }
@@ -41,20 +39,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ image: imageDataUri, caption: captionResult });
   } catch (error) {
     console.error("Generation failed:", error);
-    return NextResponse.json({ error: "Failed to generate post assets" }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to generate post assets" },
+      { status: 500 }
+    );
   }
 }
 
 async function generateCaption(code: string, language: string, platform: string) {
-  const toneInstruction = platform === "twitter"
-    ? "Keep it under 280 characters. Punchy, high engagement."
-    : "Keep it under 1300 characters. Professional but engaging.";
+  const toneInstruction =
+    platform === "twitter"
+      ? "Keep it under 280 characters. Punchy, high engagement."
+      : "Keep it under 1300 characters. Professional but engaging.";
 
   const chatCompletion = await groq.chat.completions.create({
     messages: [
-      { 
-        role: "system", 
-        content: `You are an elite dev influencer. Write a social media post for the code below. Start with a strong hook. ${toneInstruction} Output ONLY the text.` 
+      {
+        role: "system",
+        content: `You are an elite dev influencer. Write a social media post for the code below. Start with a strong hook. ${toneInstruction} Output ONLY the text.`,
       },
       { role: "user", content: `Language: ${language}\nCode:\n${code}` },
     ],
@@ -66,15 +68,15 @@ async function generateCaption(code: string, language: string, platform: string)
 }
 
 async function generateImage(code: string, language: string) {
-  // Casting language as BundledLanguage fixes the 'string is not assignable' error
-  const lang = (language || 'txt') as BundledLanguage;
+  const lang = (language || "txt") as BundledLanguage;
 
-  const result = await codeToTokens(code, { 
-    lang: lang, 
-    theme: "github-dark" 
+  const result = await codeToTokens(code, {
+    lang: lang,
+    theme: "github-dark",
   });
 
-  // Convert Shiki tokens into Satori-compatible elements
+  // FIX 2: Replace standard spaces with non-breaking spaces (\u00A0).
+  // Satori uses flexbox, which collapses standard whitespace and destroys indentation.
   const parsedCode = result.tokens.map((line) => ({
     type: "div",
     props: {
@@ -83,9 +85,10 @@ async function generateImage(code: string, language: string) {
         type: "span",
         props: {
           style: { color: token.color },
-          children: token.content
-        }
-      }))
+          // This single line fixes the Python indentation / spaces issue
+          children: token.content.replace(/ /g, "\u00A0"), 
+        },
+      })),
     },
   }));
 
@@ -93,62 +96,86 @@ async function generateImage(code: string, language: string) {
     {
       type: "div",
       props: {
-        style: { 
-          width: "100%", 
-          height: "100%", 
-          display: "flex", 
-          flexDirection: "column", 
-          backgroundColor: "#0d1117", 
-          borderRadius: "12px", 
-          overflow: "hidden" 
+        style: {
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          backgroundColor: "#0d1117",
+          borderRadius: "12px",
+          overflow: "hidden",
         },
         children: [
           {
             type: "div",
             props: {
-              style: { 
-                display: "flex", 
-                justifyContent: "space-between", 
-                alignItems: "center", 
-                padding: "16px 24px", 
-                backgroundColor: "#161b22", 
-                borderBottom: "1px solid #30363d" 
+              style: {
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "16px 24px",
+                backgroundColor: "#161b22",
+                borderBottom: "1px solid #30363d",
+                position: "relative", // Added for centering the brand name
               },
               children: [
-                { 
-                  type: "div", 
-                  props: { 
-                    style: { display: "flex", gap: "8px" }, 
+                // Left: Mac buttons
+                {
+                  type: "div",
+                  props: {
+                    style: { display: "flex", gap: "8px" },
                     children: [
                       { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#ff5f57" } } },
                       { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#febc2e" } } },
                       { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#28c840" } } },
-                    ]
-                  } 
+                    ],
+                  },
                 },
-                { 
-                  type: "span", 
-                  props: { 
-                    style: { color: "#8b949e", fontSize: "14px", fontFamily: "JetBrains Mono" }, 
-                    children: `script.${language}` 
-                  } 
-                }
-              ]
-            }
+                // Center: codetopost
+                {
+                  type: "div",
+                  props: {
+                    style: { 
+                      position: "absolute", 
+                      left: "50%", 
+                      top: "50%", 
+                      transform: "translate(-50%, -50%)", 
+                      display: "flex", 
+                      gap: "2px",
+                      fontSize: "14px", 
+                      fontFamily: "JetBrains Mono" 
+                    },
+                    children: [
+                      { type: "span", props: { style: { color: "#e8e8f0" }, children: "code" } },
+                      { type: "span", props: { style: { color: "#e89b20" }, children: "to" } },
+                      { type: "span", props: { style: { color: "#e8e8f0" }, children: "post" } },
+                    ]
+                  }
+                },
+                // Right: Filename
+                {
+                  type: "span",
+                  props: {
+                    style: { color: "#8b949e", fontSize: "14px", fontFamily: "JetBrains Mono" },
+                    children: `script.${language}`,
+                  },
+                },
+              ],
+            },
           },
           {
             type: "div",
             props: {
-              style: { 
-                padding: "24px", 
-                fontSize: "18px", 
-                fontFamily: "JetBrains Mono", 
-                display: "flex", 
-                flexDirection: "column" 
+              style: {
+                padding: "24px",
+                fontSize: "18px",
+                fontFamily: "JetBrains Mono",
+                display: "flex",
+                flexDirection: "column",
               },
-              children: parsedCode
-            }
-          }
+              children: parsedCode,
+            },
+          },
         ],
       },
     } as any,
@@ -156,12 +183,12 @@ async function generateImage(code: string, language: string) {
       width: 800,
       height: 600,
       fonts: [
-        { 
-          name: "JetBrains Mono", 
-          data: await getSystemFont(), 
-          weight: 400, 
-          style: "normal" 
-        }
+        {
+          name: "JetBrains Mono",
+          data: await getSystemFont(),
+          weight: 400,
+          style: "normal",
+        },
       ],
     }
   );
