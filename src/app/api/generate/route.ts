@@ -9,8 +9,6 @@ const groq = new Groq();
 
 let fontData: Buffer | null = null;
 
-// FIX 1: Read directly from filesystem instead of fetching via HTTP.
-// This completely eliminates the Vercel 500 error on cold starts.
 async function getSystemFont() {
   if (!fontData) {
     try {
@@ -75,22 +73,57 @@ async function generateImage(code: string, language: string) {
     theme: "github-dark",
   });
 
-  // FIX 2: Replace standard spaces with non-breaking spaces (\u00A0).
-  // Satori uses flexbox, which collapses standard whitespace and destroys indentation.
   const parsedCode = result.tokens.map((line) => ({
     type: "div",
     props: {
-      style: { display: "flex", minHeight: "1.6em" },
+      style: { 
+        display: "flex", 
+        minHeight: "1.6em",
+        flexWrap: "wrap",
+        wordBreak: "break-all" 
+      },
       children: line.map((token) => ({
         type: "span",
         props: {
           style: { color: token.color },
-          // This single line fixes the Python indentation / spaces issue
           children: token.content.replace(/ /g, "\u00A0"), 
         },
       })),
     },
   }));
+
+  // ==========================================
+  // FIX: BULLETPROOF DYNAMIC HEIGHT CALCULATION
+  // ==========================================
+  const fontSize = 18;
+  const imageWidth = 800;
+  const paddingX = 48; // 24px left + 24px right
+  const availableWidth = imageWidth - paddingX;
+  
+  // 18px monospace is ~10.8px wide. We use 14px to safely overestimate 
+  // because Satori emojis (🚀, ✨) take up double width and add hidden padding.
+  const charWidthPx = 14; 
+  
+  let totalWrappedLines = 0;
+  
+  for (const line of result.tokens) {
+    // Sum the character length of all tokens in this specific line
+    const lineStrLength = line.reduce((sum, token) => sum + token.content.length, 0);
+    
+    // How many visual rows will this string occupy on screen?
+    const linesNeeded = Math.max(1, Math.ceil((lineStrLength * charWidthPx) / availableWidth));
+    totalWrappedLines += linesNeeded;
+  }
+
+  // Overestimate vertical spacing slightly to prevent any edge-case clipping
+  const headerHeight = 60; 
+  const codePadding = 60;  
+  const lineHeightPx = 32; 
+  const bottomBuffer = 40; 
+
+  const calculatedHeight = headerHeight + codePadding + (totalWrappedLines * lineHeightPx) + bottomBuffer;
+  const dynamicHeight = Math.max(600, Math.ceil(calculatedHeight));
+  // ==========================================
 
   const svg = await satori(
     {
@@ -116,10 +149,9 @@ async function generateImage(code: string, language: string) {
                 padding: "16px 24px",
                 backgroundColor: "#161b22",
                 borderBottom: "1px solid #30363d",
-                position: "relative", // Added for centering the brand name
+                position: "relative",
               },
               children: [
-                // Left: Mac buttons
                 {
                   type: "div",
                   props: {
@@ -131,7 +163,6 @@ async function generateImage(code: string, language: string) {
                     ],
                   },
                 },
-                // Center: codetopost
                 {
                   type: "div",
                   props: {
@@ -152,7 +183,6 @@ async function generateImage(code: string, language: string) {
                     ]
                   }
                 },
-                // Right: Filename
                 {
                   type: "span",
                   props: {
@@ -181,7 +211,7 @@ async function generateImage(code: string, language: string) {
     } as any,
     {
       width: 800,
-      height: 600,
+      height: dynamicHeight, 
       fonts: [
         {
           name: "JetBrains Mono",

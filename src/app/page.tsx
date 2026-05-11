@@ -22,6 +22,10 @@ export default function Home() {
   const [caption, setCaption] = useState("");
   const [loading, setLoading] = useState(false);
   
+  // --- MOBILE/UX STATES ---
+  const [lineCount, setLineCount] = useState(0);
+  const [copySuccess, setCopySuccess] = useState(false); // NEW
+  
   // --- PAYWALL STATE ---
   const [generationsLeft, setGenerationsLeft] = useState(3);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -43,7 +47,8 @@ export default function Home() {
       const data = await res.json();
       setImage(data.image);
       setCaption(data.caption);
-      setGenerationsLeft((prev) => prev - 1); // COUNT DOWN
+      setGenerationsLeft((prev) => prev - 1);
+      setCopySuccess(false); // Reset copy state on new generation
     } catch (error) {
       console.error("Error generating:", error);
     } finally {
@@ -51,10 +56,29 @@ export default function Home() {
     }
   };
 
-  // Safe Copy (Fixes the undefined error)
-  const handleCopy = () => {
-    if (caption && navigator?.clipboard) {
-      navigator.clipboard.writeText(caption);
+  // FIX 2: Proper Async Copy with fallback for strict mobile browsers
+  const handleCopy = async () => {
+    if (!caption) return;
+    try {
+      await navigator.clipboard.writeText(caption);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      // Fallback for older mobile browsers that block clipboard API
+      const textArea = document.createElement("textarea");
+      textArea.value = caption;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      } catch (e) {
+        console.error("Fallback copy failed", e);
+      }
+      document.body.removeChild(textArea);
     }
   };
 
@@ -85,11 +109,17 @@ export default function Home() {
     img.src = image;
   };
 
+  const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setCode(val);
+    setLineCount(val.split('\n').length);
+  };
+
   return (
-    <main className="flex h-screen w-full flex-col bg-black text-white relative">
+    <main className="flex flex-col lg:flex-row h-screen w-full bg-black text-white relative">
       {/* Top Nav */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 px-6">
-        <div className="flex items-center gap-2.5 select-none">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 px-4 sm:px-6">
+        <div className="flex items-center gap-2.5 select-none shrink-0">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-7 w-7">
             <path d="M8 4C6 4 5 5 5 7V10C5 11 4 12 2 12C4 12 5 13 5 14V17C5 19 6 20 8 20" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="square" strokeLinejoin="miter"/>
             <path d="M14 12H22M22 12L18 8M22 12L18 16" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="square" strokeLinejoin="miter"/>
@@ -99,16 +129,17 @@ export default function Home() {
             <span className="font-sans">ToPost</span>
           </span>
         </div>
-        <div className={`text-xs font-medium ${generationsLeft <= 1 ? "text-red-500" : "text-zinc-500"}`}>
-          {generationsLeft} free generations left
+        {/* FIX 1: Added shrink-0 and ml-auto to prevent cramping into logo */}
+        <div className={`text-xs font-medium shrink-0 ml-auto sm:ml-0 ${generationsLeft <= 1 ? "text-red-500" : "text-zinc-500"}`}>
+          {generationsLeft} free left
         </div>
       </header>
 
       {/* Main Split Layout */}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex flex-col lg:flex-row min-h-0 flex-1 overflow-hidden">
         
         {/* LEFT PANEL: INPUT */}
-        <div className="flex w-1/2 flex-col overflow-hidden border-r border-white/10 p-6">
+        <div className="flex w-full lg:w-1/2 flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-white/10 p-4 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-medium text-zinc-400">INPUT</h2>
             <Select value={language} onValueChange={setLanguage}>
@@ -126,22 +157,31 @@ export default function Home() {
 
           <Textarea 
             value={code} 
-            onChange={(e) => setCode(e.target.value)} 
+            onChange={handleCodeChange} 
             placeholder="Paste your code here..." 
             className="flex-1 resize-none rounded-lg border-white/10 bg-zinc-950 p-4 font-mono text-sm focus-visible:ring-1 focus-visible:ring-white/20" 
           />
 
+          <div className="mt-2 flex items-center justify-between h-4">
+            <span className="text-xs text-zinc-700">{lineCount} lines</span>
+            {lineCount > 45 && (
+              <span className="text-xs text-yellow-500 font-medium">
+                ⚠️ Long code may get cropped on X/LinkedIn
+              </span>
+            )}
+          </div>
+
           <Button 
             onClick={handleGenerate} 
             disabled={loading} 
-            className="mt-4 h-11 w-full shrink-0 bg-white text-black font-semibold text-sm hover:bg-zinc-200 disabled:opacity-50"
+            className="mt-3 h-11 w-full shrink-0 bg-white text-black font-semibold text-sm hover:bg-zinc-200 disabled:opacity-50"
           >
             {loading ? "Generating..." : "Generate Post 🚀"}
           </Button>
         </div>
 
         {/* RIGHT PANEL: OUTPUT */}
-        <div className="flex w-1/2 flex-col overflow-hidden p-6">
+        <div className="flex w-full lg:w-1/2 flex-col overflow-hidden p-4 sm:p-6 min-h-0">
           <div className="mb-4"><h2 className="text-sm font-medium text-zinc-400">OUTPUT</h2></div>
 
           <Tabs defaultValue="image" className="flex min-h-0 flex-1 flex-col">
@@ -151,26 +191,40 @@ export default function Home() {
               <TabsTrigger value="platform" className="text-xs data-[state=active]:bg-zinc-100 data-[state=active]:text-black">Platform</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="image" className="flex flex-1 flex-col gap-4 rounded-lg border border-dashed border-white/10 bg-zinc-950/50 mt-0 overflow-hidden p-4">
-              <div className="flex flex-1 items-center justify-center overflow-hidden">
-                {image ? <img src={image} alt="Generated Code" className="w-full h-full object-contain rounded-md" /> : <p className="text-xs text-zinc-600">Image preview will appear here</p>}
+            <TabsContent value="image" className="flex flex-1 flex-col rounded-lg border border-dashed border-white/10 bg-zinc-950/50 mt-0 p-4 min-h-0 overflow-hidden">
+              <div className="flex flex-1 min-h-0 items-center justify-center overflow-auto p-2">
+                {image ? (
+                  <img 
+                    src={image} 
+                    alt="Generated Code" 
+                    className="max-w-full max-h-full object-contain rounded-md shadow-2xl" 
+                  />
+                ) : (
+                  <p className="text-xs text-zinc-600">Image preview will appear here</p>
+                )}
               </div>
+
               {image && (
-                <Button onClick={handleDownload} className="w-full bg-white text-black font-semibold text-sm hover:bg-zinc-200 shrink-0">
-                  Download PNG 📸
-                </Button>
+                <div className="flex-shrink-0 mt-4 pt-4 border-t border-white/5">
+                  <Button onClick={handleDownload} className="w-full bg-white text-black font-semibold text-sm hover:bg-zinc-200">
+                    Download PNG 📸
+                  </Button>
+                </div>
               )}
             </TabsContent>
 
-            <TabsContent value="caption" className="flex flex-1 flex-col rounded-lg border border-white/10 bg-zinc-950/50 p-4 mt-0">
+            <TabsContent value="caption" className="flex flex-1 flex-col rounded-lg border border-white/10 bg-zinc-950/50 p-4 mt-0 min-h-0 overflow-auto">
               <p className="flex-1 text-sm text-zinc-300 whitespace-pre-wrap">{caption || "AI generated hook and caption will appear here..."}</p>
-              <div className="mt-4 flex gap-2">
-                <Button variant="outline" size="sm" className="border-white/10 text-xs hover:bg-zinc-800" onClick={handleCopy} disabled={!caption}>Copy</Button>
+              <div className="mt-4 flex gap-2 shrink-0">
+                {/* FIX 2: Visual feedback for copy */}
+                <Button variant="outline" size="sm" className="border-white/10 text-xs hover:bg-zinc-800" onClick={handleCopy} disabled={!caption}>
+                  {copySuccess ? "Copied! ✅" : "Copy"}
+                </Button>
                 <Button variant="outline" size="sm" className="border-white/10 text-xs hover:bg-zinc-800" onClick={handleGenerate} disabled={loading}>Regenerate</Button>
               </div>
             </TabsContent>
 
-            <TabsContent value="platform" className="flex flex-1 flex-col gap-4 rounded-lg border border-white/10 bg-zinc-950/50 p-4 mt-0">
+            <TabsContent value="platform" className="flex flex-1 flex-col gap-4 rounded-lg border border-white/10 bg-zinc-950/50 p-4 mt-0 overflow-auto">
               <Label className="text-xs text-zinc-500">Target Platform</Label>
               <div className="flex gap-2">
                 <Button variant={platform === "twitter" ? "default" : "outline"} className={`flex-1 text-xs ${platform === "twitter" ? "bg-white text-black hover:bg-zinc-200" : "border-white/10 hover:bg-zinc-800"}`} onClick={() => setPlatform("twitter")}>X (Twitter)</Button>
@@ -185,7 +239,7 @@ export default function Home() {
 
       {/* SOFT PAYWALL POPUP */}
       {showPaywall && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-zinc-950 border border-white/10 rounded-xl p-8 max-w-sm text-center">
             <h3 className="text-xl font-bold mb-2">You're out of free generations! 🛑</h3>
             <p className="text-sm text-zinc-400 mb-6">You've used your 3 free generations for this week. Check back soon for premium unlimited access!</p>
