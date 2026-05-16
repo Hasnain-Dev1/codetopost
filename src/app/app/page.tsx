@@ -15,5 +15,6 @@ export default async function AppPage() {
 
   const credits = profile?.is_pro ? 999 : (profile?.generations_left || 0);
 
-  return <ToolUI initialGenerationsLeft={credits} userId={user.id} />;
+  // Added isPro state here
+  return <ToolUI initialGenerationsLeft={credits} userId={user.id} isPro={profile?.is_pro || false} />;
 }

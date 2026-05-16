@@ -23,11 +23,11 @@ async function getSystemFont() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { code, language, platform, userId } = await req.json();
+    // ---> GRABBED SETTINGS HERE <---
+    const { code, language, platform, userId, settings } = await req.json();
 
     if (!code) return NextResponse.json({ error: "No code provided" }, { status: 400 });
 
-    // --- SECURE CREDIT CHECK ---
     const supabase = await createClient();
     const { data: profile } = await supabase
       .from("profiles")
@@ -43,11 +43,10 @@ export async function POST(req: NextRequest) {
     if (!profile.is_pro) {
       await supabase.from("profiles").update({ generations_left: profile.generations_left - 1 }).eq("id", userId);
     }
-    // -------------------------
 
     const [captionResult, imageDataUri] = await Promise.all([
       generateCaption(code, language, platform),
-      generateImage(code, language),
+      generateImage(code, language, settings), // ---> PASSED SETTINGS HERE <---
     ]);
 
     return NextResponse.json({ image: imageDataUri, caption: captionResult });
@@ -70,9 +69,13 @@ async function generateCaption(code: string, language: string, platform: string)
   return chatCompletion.choices[0]?.message?.content || "Could not generate caption.";
 }
 
-async function generateImage(code: string, language: string) {
+async function generateImage(code: string, language: string, settings: any) {
   const lang = (language || "txt") as BundledLanguage;
   const result = await codeToTokens(code, { lang, theme: "github-dark" });
+
+  // ---> EXTRACTED SETTINGS WITH FALLBACKS HERE <---
+  const bg = settings?.bg || "#0d1117";
+  const padding = settings?.padding || 24;
 
   const parsedCode = result.tokens.map((line) => ({
     type: "div",
@@ -83,7 +86,7 @@ async function generateImage(code: string, language: string) {
   }));
 
   const imageWidth = 800;
-  const paddingX = 48;
+  const paddingX = padding * 2; // Top + Bottom
   const availableWidth = imageWidth - paddingX;
   const charWidthPx = 14; 
   let totalWrappedLines = 0;
@@ -94,7 +97,11 @@ async function generateImage(code: string, language: string) {
     totalWrappedLines += linesNeeded;
   }
 
-  const headerHeight = 60; const codePadding = 60; const lineHeightPx = 32; const bottomBuffer = 40;
+  // ---> UPDATED MATH TO USE DYNAMIC PADDING <---
+  const headerHeight = 60; 
+  const codePadding = paddingX; 
+  const lineHeightPx = 32; 
+  const bottomBuffer = 40;
   const calculatedHeight = headerHeight + codePadding + (totalWrappedLines * lineHeightPx) + bottomBuffer;
   const dynamicHeight = Math.max(600, Math.ceil(calculatedHeight));
 
@@ -102,14 +109,33 @@ async function generateImage(code: string, language: string) {
     {
       type: "div",
       props: {
-        style: { width: "100%", height: "100%", display: "flex", flexDirection: "column", backgroundColor: "#0d1117", borderRadius: "12px", overflow: "hidden" },
+        style: { 
+          width: "100%", 
+          height: "100%", 
+          display: "flex", 
+          flexDirection: "column", 
+          // ---> INJECTED DYNAMIC BACKGROUND HERE <---
+          backgroundColor: bg, 
+          borderRadius: "12px", 
+          overflow: "hidden" 
+        },
         children: [
           { type: "div", props: { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", backgroundColor: "#161b22", borderBottom: "1px solid #30363d", position: "relative" }, children: [
             { type: "div", props: { style: { display: "flex", gap: "8px" }, children: [ { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#ff5f57" } } }, { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#febc2e" } } }, { type: "div", props: { style: { width: "12px", height: "12px", borderRadius: "50%", backgroundColor: "#28c840" } } } ] } },
             { type: "div", props: { style: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", display: "flex", gap: "2px", fontSize: "14px", fontFamily: "JetBrains Mono" }, children: [ { type: "span", props: { style: { color: "#e8e8f0" }, children: "code" } }, { type: "span", props: { style: { color: "#e89b20" }, children: "to" } }, { type: "span", props: { style: { color: "#e8e8f0" }, children: "post" } } ] } },
             { type: "span", props: { style: { color: "#8b949e", fontSize: "14px", fontFamily: "JetBrains Mono" }, children: `script.${language}` } }
           ] } },
-          { type: "div", props: { style: { padding: "24px", fontSize: "18px", fontFamily: "JetBrains Mono", display: "flex", flexDirection: "column" }, children: parsedCode } }
+          { type: "div", props: { 
+            style: { 
+              // ---> INJECTED DYNAMIC PADDING HERE <---
+              padding: `${padding}px`, 
+              fontSize: "18px", 
+              fontFamily: "JetBrains Mono", 
+              display: "flex", 
+              flexDirection: "column" 
+            }, 
+            children: parsedCode 
+          } }
         ],
       },
     } as any,
