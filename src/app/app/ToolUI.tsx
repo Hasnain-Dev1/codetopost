@@ -99,7 +99,8 @@ function ThemeCustomizer({ settings, setSettings, isPro, onLockedClick }: any) {
         )}
       </div>
     </>
-  );}
+  );
+}
 
 export default function ToolUI({ initialGenerationsLeft, userId, isPro }: { initialGenerationsLeft: number, userId: string, isPro: boolean }) {
   const [code, setCode] = useState(`// Paste your code here to see the magic happen...\nfunction hello() {\n  console.log("Auto-detect is working!");\n}`);
@@ -197,7 +198,7 @@ export default function ToolUI({ initialGenerationsLeft, userId, isPro }: { init
                 <div ref={exportRef} className={`w-full max-w-2xl h-full rounded-xl transition-all duration-300 flex flex-col ${getActiveTheme().style} ${settings.padding}`}>
                   <div className={`flex-shrink-0 flex items-center justify-between px-4 py-3 rounded-t-lg relative h-10 backdrop-blur-sm ${getActiveTheme().headerBg} border-b border-white/10`}>
                     <div className="flex gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /><span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" /><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /></div>
-                    {!isPro && (<div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1 text-sm font-mono ${getActiveTheme().text} opacity-80`}><span>code</span><span className="text-orange-500">to</span><span>post</span></div>)}
+                    {!isPro && (<div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1 text-sm font-mono ${getActiveTheme().text} opacity-80`}><span>code</span><span className="text-orange-500">to</span><span>post</span></div>)}
                     <span className={`text-xs font-mono ${getActiveTheme().text} opacity-60`}>script.{displayLang}</span>
                   </div>
                   <div className={`flex-grow overflow-y-auto rounded-b-lg backdrop-blur-sm ${getActiveTheme().codeBg} font-mono text-sm`}>
