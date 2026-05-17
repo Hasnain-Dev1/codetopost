@@ -1,22 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { toPng } from "html-to-image"; // THE DOWNLOAD FIX
 
-interface ThemeConfig {
-  name: string;
-  style: string;
-  codeBg: string;
-  headerBg: string;
-  text: string;
-  isPro?: boolean;
-}
-
+interface ThemeConfig { name: string; style: string; codeBg: string; headerBg: string; text: string; isPro?: boolean; }
 const ALL_THEMES: Record<string, ThemeConfig> = {
   midnight: { name: "Midnight", style: "bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950", codeBg: "bg-zinc-900/95", headerBg: "bg-zinc-900/50", text: "text-zinc-300" },
   noir: { name: "Noir", style: "bg-[#0b0b0b]", codeBg: "bg-[#1a1a1a]", headerBg: "bg-[#1a1a1a]", text: "text-[#f5f5f7]" },
@@ -31,7 +24,6 @@ const ALL_THEMES: Record<string, ThemeConfig> = {
   crimson: { name: "Crimson", style: "bg-gradient-to-br from-red-800 via-rose-900 to-red-950", codeBg: "bg-[#1f0a0a]/90", headerBg: "bg-[#1f0a0a]/50", text: "text-red-200", isPro: true },
   ice: { name: "Ice", style: "bg-gradient-to-br from-[#BEEEF9] via-[#4B8CAB] to-[#6AC6DE]", codeBg: "bg-white/60 border border-white/30", headerBg: "bg-white/40 border-b border-white/20", text: "text-slate-800", isPro: true },
 };
-
 const THEME_CATEGORIES = { minimal: ["midnight", "noir", "mono"], vibrant: ["candy", "sunset", "breeze"], earthy: ["forest", "sand", "meadow"], pro: ["falcon", "crimson", "ice"] };
 
 function detectLanguage(code: string): string {
@@ -57,21 +49,21 @@ function detectLanguage(code: string): string {
 
 const paddings = [{ label: "S", value: "p-4" }, { label: "M", value: "p-8" }, { label: "L", value: "p-16" }];
 
-function ExportHub() {
+function ExportHub({ handleDownload }: { handleDownload: () => Promise<void> }) {
   const [isOpen, setIsOpen] = useState(false);
   return (
-    <div className="relative">
+    <div className="relative z-[200]"> {/* KEEPS IT ON TOP OF EVERYTHING */}
       <button onClick={() => setIsOpen(!isOpen)} className="flex items-center gap-2 px-3 h-8 text-xs font-medium bg-zinc-800/50 border border-white/10 rounded-lg hover:bg-zinc-700/50 transition-colors">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Export
       </button>
       {isOpen && (
-        <div className="absolute right-0 top-10 w-48 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl p-1 z-[200]"> {/* Z-INDEX 200 FIX */}
-          <button className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 rounded-lg flex items-center gap-2">📸 Save as PNG</button>
-          <button className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 rounded-lg flex items-center gap-2">📐 Save as SVG</button>
+        <div className="absolute right-0 top-10 w-48 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl p-1 z-[300]"> {/* ULTRA HIGH Z-INDEX */}
+          <button onClick={handleDownload} className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 rounded-lg flex items-center gap-2">📸 Save as PNG</button>
+          <button disabled className="w-full text-left px-3 py-2 text-xs text-zinc-400 opacity-50 rounded-lg flex items-center gap-2 cursor-not-allowed">📐 Save as SVG (Coming Soon)</button>
           <div className="h-px bg-white/5 my-1" />
-          <button className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 rounded-lg flex items-center gap-2">📋 Copy Image</button>
-          <button className="w-full text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 rounded-lg flex items-center gap-2">🔗 Copy URL</button>
+          <button disabled className="w-full text-left px-3 py-2 text-xs text-zinc-400 opacity-50 rounded-lg flex items-center gap-2 cursor-not-allowed">📋 Copy Image (Coming Soon)</button>
+          <button disabled className="w-full text-left px-3 py-2 text-xs text-zinc-400 opacity-50 rounded-lg flex items-center gap-2 cursor-not-allowed">🔗 Copy URL (Coming Soon)</button>
         </div>
       )}
     </div>
@@ -104,11 +96,10 @@ function ThemeCustomizer({ settings, setSettings, isPro, onLockedClick }: any) {
               ); })}
             </div>
           </div>
-        ))}
+        )}
       </div>
     </>
-  );
-}
+  );}
 
 export default function ToolUI({ initialGenerationsLeft, userId, isPro }: { initialGenerationsLeft: number, userId: string, isPro: boolean }) {
   const [code, setCode] = useState(`// Paste your code here to see the magic happen...\nfunction hello() {\n  console.log("Auto-detect is working!");\n}`);
@@ -121,6 +112,7 @@ export default function ToolUI({ initialGenerationsLeft, userId, isPro }: { init
   const [generationsLeft, setGenerationsLeft] = useState(initialGenerationsLeft);
   const [showPaywall, setShowPaywall] = useState(false);
   const [settings, setSettings] = useState({ bg: "midnight", padding: "p-8", showLines: false });
+  const exportRef = useRef<HTMLDivElement>(null); // REF FOR THE DOWNLOAD
 
   const getActiveTheme = () => ALL_THEMES[settings.bg] || ALL_THEMES.midnight;
   const displayLang = language === "auto" ? detectLanguage(code) : language;
@@ -140,6 +132,22 @@ export default function ToolUI({ initialGenerationsLeft, userId, isPro }: { init
   };
 
   const handleCopy = async () => { if (!caption) return; try { await navigator.clipboard.writeText(caption); setCopySuccess(true); setTimeout(() => setCopySuccess(false), 2000); } catch (err) { console.error(err); } };
+
+  // THE REAL DOWNLOAD FUNCTION
+  const handleDownload = async () => {
+    if (!exportRef.current) return;
+    try {
+      const dataUrl = await toPng(exportRef.current, { cacheBust: true, pixelRatio: 2 }); // 2x quality
+      const link = document.createElement("a");
+      link.download = "codetopost.png";
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Download failed:", err);
+    }
+  };
 
   return (
     <main className="flex flex-col lg:flex-row h-screen w-full bg-black text-white relative">
@@ -173,7 +181,7 @@ export default function ToolUI({ initialGenerationsLeft, userId, isPro }: { init
         <div className="flex w-full lg:w-1/2 flex-col overflow-hidden p-4 sm:p-6 min-h-0 relative">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-medium text-zinc-400">LIVE PREVIEW</h2>
-            <ExportHub />
+            <ExportHub handleDownload={handleDownload} /> {/* EXPORT IS NOW UP HERE, NOT AT THE BOTTOM */}
           </div>
           
           <Tabs defaultValue="image" className="flex min-h-0 flex-1 flex-col">
@@ -183,10 +191,10 @@ export default function ToolUI({ initialGenerationsLeft, userId, isPro }: { init
               <TabsTrigger value="platform" className="text-xs data-[state=active]:bg-zinc-100 data-[state=active]:text-black">Platform</TabsTrigger>
             </TabsList>
 
-            {/* FIXED: Removed overflow-hidden from here so dropdowns work! */}
-            <TabsContent value="image" className="flex flex-1 flex-col rounded-lg border border-dashed border-white/10 bg-zinc-950/50 mt-0 p-4 min-h-0 overflow-visible relative">
+            <TabsContent value="image" className="flex flex-1 flex-col rounded-lg border border-dashed border-white/10 bg-zinc-950/50 mt-0 p-4 min-h-0 overflow-hidden">
               <div className="flex flex-1 min-h-0 items-center justify-center overflow-hidden p-4">
-                <div className={`w-full max-w-2xl h-full rounded-xl transition-all duration-300 flex flex-col ${getActiveTheme().style} ${settings.padding}`}>
+                {/* THE REF GOES HERE SO WE CAN CAPTURE IT */}
+                <div ref={exportRef} className={`w-full max-w-2xl h-full rounded-xl transition-all duration-300 flex flex-col ${getActiveTheme().style} ${settings.padding}`}>
                   <div className={`flex-shrink-0 flex items-center justify-between px-4 py-3 rounded-t-lg relative h-10 backdrop-blur-sm ${getActiveTheme().headerBg} border-b border-white/10`}>
                     <div className="flex gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /><span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" /><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /></div>
                     {!isPro && (<div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1 text-sm font-mono ${getActiveTheme().text} opacity-80`}><span>code</span><span className="text-orange-500">to</span><span>post</span></div>)}
@@ -198,9 +206,7 @@ export default function ToolUI({ initialGenerationsLeft, userId, isPro }: { init
                   </div>
                 </div>
               </div>
-              <div className="flex-shrink-0 mt-4 pt-4 border-t border-white/5">
-                <Button onClick={() => alert("Backend export coming tomorrow! For now, take a screenshot of this beautiful preview 📸")} className="w-full bg-white text-black font-semibold text-sm hover:bg-zinc-200">Download PNG 📸</Button>
-              </div>
+              {/* NO BOTTOM BUTTON HERE ANYMORE */}
             </TabsContent>
 
             <TabsContent value="caption" className="flex flex-1 flex-col rounded-lg border border-white/10 bg-zinc-950/50 p-4 mt-0 min-h-0 overflow-auto">
