@@ -96,7 +96,7 @@ function ThemeCustomizer({ settings, setSettings, isPro, onLockedClick }: any) {
               ); })}
             </div>
           </div>
-        )}
+        ))}
       </div>
     </>
   );
