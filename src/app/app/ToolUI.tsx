@@ -605,20 +605,21 @@ export default function ToolUI({
   
     const handleDownloadPng = async () => {
     if (!exportRef.current) return;
-    setIsExporting(true); // Triggers the blur overlay
+    setIsExporting(true);
     
     const node = exportRef.current;
     const codeArea = node.querySelector('.flex-grow') as HTMLElement;
     
     // Save originals
     const origHeight = node.style.height;
-    const origOverflow = codeArea?.style.overflowY;
+    const origOverflow = codeArea?.style.overflow;
     
-    // 1. EXPAND (The Jedi Trick)
+    // 1. EXPAND & NUKE SCROLLBARS
     node.style.height = 'auto';
-    if (codeArea) codeArea.style.overflowY = 'hidden';
+    if (codeArea) {
+      codeArea.style.overflow = 'hidden'; // Kills both X and Y scrollbars completely
+    }
     
-    // Wait 50ms for DOM to paint the new size
     await new Promise(res => setTimeout(res, 50));
 
     try {
@@ -633,10 +634,9 @@ export default function ToolUI({
     } catch (err) {
       console.error("PNG download failed:", err);
     } finally {
-      // 2. REVERT instantly
       node.style.height = origHeight;
-      if (codeArea) codeArea.style.overflowY = origOverflow || 'auto';
-      setIsExporting(false); // Removes blur overlay
+      if (codeArea) codeArea.style.overflow = origOverflow || 'auto';
+      setIsExporting(false);
     }
   };
 
@@ -647,10 +647,10 @@ export default function ToolUI({
     const node = exportRef.current;
     const codeArea = node.querySelector('.flex-grow') as HTMLElement;
     const origHeight = node.style.height;
-    const origOverflow = codeArea?.style.overflowY;
+    const origOverflow = codeArea?.style.overflow;
     
     node.style.height = 'auto';
-    if (codeArea) codeArea.style.overflowY = 'hidden';
+    if (codeArea) codeArea.style.overflow = 'hidden';
     await new Promise(res => setTimeout(res, 50));
 
     try {
@@ -666,7 +666,7 @@ export default function ToolUI({
       console.error("SVG download failed:", err);
     } finally {
       node.style.height = origHeight;
-      if (codeArea) codeArea.style.overflowY = origOverflow || 'auto';
+      if (codeArea) codeArea.style.overflow = origOverflow || 'auto';
       setIsExporting(false);
     }
   };
@@ -678,10 +678,10 @@ export default function ToolUI({
     const node = exportRef.current;
     const codeArea = node.querySelector('.flex-grow') as HTMLElement;
     const origHeight = node.style.height;
-    const origOverflow = codeArea?.style.overflowY;
+    const origOverflow = codeArea?.style.overflow;
     
     node.style.height = 'auto';
-    if (codeArea) codeArea.style.overflowY = 'hidden';
+    if (codeArea) codeArea.style.overflow = 'hidden';
     await new Promise(res => setTimeout(res, 50));
 
     try {
@@ -695,7 +695,7 @@ export default function ToolUI({
       console.error("Copy image failed:", err);
     } finally {
       node.style.height = origHeight;
-      if (codeArea) codeArea.style.overflowY = origOverflow || 'auto';
+      if (codeArea) codeArea.style.overflow = origOverflow || 'auto';
       setIsExporting(false);
     }
   };
@@ -901,7 +901,6 @@ export default function ToolUI({
               <span className="whitespace-pre leading-6">{line}</span>
             </div>
           ))}
-          <div className="h-6" />
         </div>
       </div>
     )}
