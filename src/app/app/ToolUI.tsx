@@ -159,7 +159,7 @@ function ExportHub({
       <button 
         onClick={() => setIsOpen(!isOpen)} 
         disabled={isExporting}
-        className="flex items-center gap-2 px-3 h-8 text-xs font-medium bg-zinc-800/50 border border-white/10 rounded-lg hover:bg-zinc-700/50 transition-colors disabled:opacity-50"
+        className="flex items-center gap-2 px-3 h-8 text-xs font-medium bg-zinc-800/50 border border-white/10 rounded-lg hover:bg-zinc-700/50 active:scale-95 active:bg-zinc-600 transition-all duration-100 disabled:opacity-50 disabled:active:scale-100"
       >
         {isExporting ? (
           <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
@@ -181,7 +181,7 @@ function ExportHub({
           <button 
             onClick={() => { handleDownloadPng(); setIsOpen(false); }} 
             disabled={isExporting}
-            className="w-full text-left px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 rounded-lg flex items-center gap-2.5 transition-colors disabled:opacity-50"
+            className="w-full text-left px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 active:scale-[0.98] active:bg-zinc-700 rounded-lg flex items-center gap-2.5 transition-all duration-75 disabled:opacity-50 disabled:active:scale-100"
           >
             <span>📸</span>
             <span>{isExporting ? "Generating..." : "Save as PNG"}</span>
@@ -191,7 +191,7 @@ function ExportHub({
           <button 
             onClick={() => { handleDownloadSvg(); setIsOpen(false); }} 
             disabled={isExporting}
-            className="w-full text-left px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 rounded-lg flex items-center gap-2.5 transition-colors disabled:opacity-50"
+            className="w-full text-left px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 active:scale-[0.98] active:bg-zinc-700 rounded-lg flex items-center gap-2.5 transition-all duration-75 disabled:opacity-50 disabled:active:scale-100"
           >
             <span>📐</span>
             <span>{isExporting ? "Generating..." : "Save as SVG"}</span>
@@ -202,7 +202,7 @@ function ExportHub({
           <button 
             onClick={() => { handleCopyImage(); }} 
             disabled={isExporting}
-            className="w-full text-left px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 rounded-lg flex items-center gap-2.5 transition-colors disabled:opacity-50"
+            className="w-full text-left px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 active:scale-[0.98] active:bg-zinc-700 rounded-lg flex items-center gap-2.5 transition-all duration-75 disabled:opacity-50 disabled:active:scale-100"
           >
             <span>📋</span>
             <span>{copyImageSuccess ? "Copied! ✅" : "Copy Image"}</span>
@@ -210,7 +210,7 @@ function ExportHub({
           
           <button 
             onClick={() => { handleCopyUrl(); }} 
-            className="w-full text-left px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 rounded-lg flex items-center gap-2.5 transition-colors"
+            className="w-full text-left px-3 py-2.5 text-xs text-zinc-300 hover:bg-zinc-800 active:scale-[0.98] active:bg-zinc-700 rounded-lg flex items-center gap-2.5 transition-all duration-75"
           >
             <span>🔗</span>
             <span>{copyUrlSuccess ? "Copied! ✅" : "Copy Base64"}</span>
@@ -603,14 +603,26 @@ export default function ToolUI({
   // EXPORT FUNCTIONS (ALL WORKING)
   // ═══════════════════════════════════════════════════════════════
   
-  const handleDownloadPng = async () => {
+    const handleDownloadPng = async () => {
     if (!exportRef.current) return;
-    setIsExporting(true);
+    setIsExporting(true); // Triggers the blur overlay
+    
+    const node = exportRef.current;
+    const codeArea = node.querySelector('.flex-grow') as HTMLElement;
+    
+    // Save originals
+    const origHeight = node.style.height;
+    const origOverflow = codeArea?.style.overflowY;
+    
+    // 1. EXPAND (The Jedi Trick)
+    node.style.height = 'auto';
+    if (codeArea) codeArea.style.overflowY = 'hidden';
+    
+    // Wait 50ms for DOM to paint the new size
+    await new Promise(res => setTimeout(res, 50));
+
     try {
-      const dataUrl = await toPng(exportRef.current, { 
-        cacheBust: true, 
-        pixelRatio: 2 
-      });
+      const dataUrl = await toPng(node, { cacheBust: true, pixelRatio: 2 });
       const filename = customFilename.trim() ? `${customFilename.replace(/\.[^.]+$/, '')}.png` : "codetopost.png";
       const link = document.createElement("a");
       link.download = filename;
@@ -621,17 +633,28 @@ export default function ToolUI({
     } catch (err) {
       console.error("PNG download failed:", err);
     } finally {
-      setIsExporting(false);
+      // 2. REVERT instantly
+      node.style.height = origHeight;
+      if (codeArea) codeArea.style.overflowY = origOverflow || 'auto';
+      setIsExporting(false); // Removes blur overlay
     }
   };
 
   const handleDownloadSvg = async () => {
     if (!exportRef.current) return;
     setIsExporting(true);
+    
+    const node = exportRef.current;
+    const codeArea = node.querySelector('.flex-grow') as HTMLElement;
+    const origHeight = node.style.height;
+    const origOverflow = codeArea?.style.overflowY;
+    
+    node.style.height = 'auto';
+    if (codeArea) codeArea.style.overflowY = 'hidden';
+    await new Promise(res => setTimeout(res, 50));
+
     try {
-      const dataUrl = await toSvg(exportRef.current, { 
-        cacheBust: true 
-      });
+      const dataUrl = await toSvg(node, { cacheBust: true });
       const filename = customFilename.trim() ? `${customFilename.replace(/\.[^.]+$/, '')}.svg` : "codetopost.svg";
       const link = document.createElement("a");
       link.download = filename;
@@ -642,6 +665,8 @@ export default function ToolUI({
     } catch (err) {
       console.error("SVG download failed:", err);
     } finally {
+      node.style.height = origHeight;
+      if (codeArea) codeArea.style.overflowY = origOverflow || 'auto';
       setIsExporting(false);
     }
   };
@@ -649,21 +674,28 @@ export default function ToolUI({
   const handleCopyImage = async () => {
     if (!exportRef.current) return;
     setIsExporting(true);
+    
+    const node = exportRef.current;
+    const codeArea = node.querySelector('.flex-grow') as HTMLElement;
+    const origHeight = node.style.height;
+    const origOverflow = codeArea?.style.overflowY;
+    
+    node.style.height = 'auto';
+    if (codeArea) codeArea.style.overflowY = 'hidden';
+    await new Promise(res => setTimeout(res, 50));
+
     try {
-      const blob = await toBlob(exportRef.current, { 
-        cacheBust: true, 
-        pixelRatio: 2 
-      });
+      const blob = await toBlob(node, { cacheBust: true, pixelRatio: 2 });
       if (blob) {
-        await navigator.clipboard.write([
-          new ClipboardItem({ "image/png": blob })
-        ]);
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
         setCopyImageSuccess(true);
         setTimeout(() => setCopyImageSuccess(false), 2000);
       }
     } catch (err) {
       console.error("Copy image failed:", err);
     } finally {
+      node.style.height = origHeight;
+      if (codeArea) codeArea.style.overflowY = origOverflow || 'auto';
       setIsExporting(false);
     }
   };
@@ -793,74 +825,88 @@ export default function ToolUI({
             </TabsList>
 
             {/* IMAGE TAB */}
-            <TabsContent value="image" className="flex flex-1 flex-col rounded-lg border border-dashed border-white/10 bg-zinc-950/50 mt-0 p-4 min-h-0 overflow-hidden">
-              {/* CUSTOM FILENAME TOGGLE */}
-              <div className="flex items-center justify-between mb-3 shrink-0">
-                <button 
-                  onClick={() => setShowFilenameInput(!showFilenameInput)}
-                  className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
-                  {showFilenameInput ? 'Hide filename' : 'Custom filename'}
-                </button>
-              </div>
-              
-              {showFilenameInput && (
-                <div className="mb-3 shrink-0">
-                  <input
-                    type="text"
-                    placeholder={displayFilename}
-                    value={customFilename}
-                    onChange={(e) => setCustomFilename(e.target.value)}
-                    className="w-full h-8 px-3 rounded-lg border border-white/10 bg-zinc-900 text-xs text-white placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
-                  />
-                </div>
+            <TabsContent value="image" className="relative flex flex-1 flex-col rounded-lg border border-dashed border-white/10 bg-zinc-950/50 mt-0 p-4 min-h-0 overflow-hidden">
+  
+  {/* THE EXPORT OVERLAY */}
+  {isExporting && (
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-lg">
+      <div className="flex flex-col items-center gap-3">
+        <svg className="animate-spin h-6 w-6 text-white" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <span className="text-xs text-zinc-300 font-medium">Exporting...</span>
+      </div>
+    </div>
+  )}
+
+  {/* CUSTOM FILENAME TOGGLE */}
+  <div className="flex items-center justify-between mb-3 shrink-0">
+    <button 
+      onClick={() => setShowFilenameInput(!showFilenameInput)}
+      className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+    >
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      </svg>
+      {showFilenameInput ? 'Hide filename' : 'Custom filename'}
+    </button>
+  </div>
+  
+  {showFilenameInput && (
+    <div className="mb-3 shrink-0">
+      <input
+        type="text"
+        placeholder={displayFilename}
+        value={customFilename}
+        onChange={(e) => setCustomFilename(e.target.value)}
+        className="w-full h-8 px-3 rounded-lg border border-white/10 bg-zinc-900 text-xs text-white placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
+      />
+    </div>
+  )}
+  
+  <div className="flex flex-1 min-h-0 items-center justify-center overflow-hidden p-4">
+    {isRendering ? (
+      <CodeSkeleton theme={getActiveTheme()} />
+    ) : (
+      <div 
+        ref={exportRef} 
+        className={`w-full max-w-2xl h-full rounded-xl transition-all duration-300 flex flex-col ${getActiveTheme().style} ${settings.padding}`}
+      >
+        {/* MAC WINDOW HEADER */}
+        <div className={`flex-shrink-0 flex items-center justify-between px-4 py-3 rounded-t-lg relative h-10 backdrop-blur-sm ${getActiveTheme().headerBg} border-b ${getActiveTheme().isLight ? 'border-black/10' : 'border-white/10'}`}>
+          <div className="flex gap-1.5">
+            <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-red-400' : 'bg-red-500'} inline-block`} />
+            <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-yellow-400' : 'bg-yellow-500'} inline-block`} />
+            <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-green-400' : 'bg-green-500'} inline-block`} />
+          </div>
+          {!isPro && (
+            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1 text-sm font-mono ${getActiveTheme().windowText}`}>
+              <span>code</span>
+              <span className={getActiveTheme().isLight ? 'text-orange-600' : 'text-orange-500'}>to</span>
+              <span>post</span>
+            </div>
+          )}
+          <span className={`text-xs font-mono ${getActiveTheme().windowText}`}>{displayFilename}</span>
+        </div>
+        
+        {/* CODE AREA */}
+        <div className={`flex-grow overflow-y-auto rounded-b-lg backdrop-blur-sm ${getActiveTheme().codeBg} font-mono text-sm`}>
+          {code.split('\n').map((line, i) => (
+            <div key={i} className={`flex hover:${getActiveTheme().isLight ? 'bg-black/5' : 'bg-white/5'} -mx-6 px-6 ${getActiveTheme().text}`}>
+              {settings.showLines && (
+                <span className={`w-8 text-right pr-4 select-none text-xs shrink-0 leading-6 ${getActiveTheme().isLight ? 'opacity-30' : 'opacity-40'}`}>{i + 1}</span>
               )}
-              
-              <div className="flex flex-1 min-h-0 items-center justify-center overflow-hidden p-4">
-                {isRendering ? (
-                  <CodeSkeleton theme={getActiveTheme()} />
-                ) : (
-                  <div 
-                    ref={exportRef} 
-                    className={`w-full max-w-2xl h-full rounded-xl transition-all duration-300 flex flex-col ${getActiveTheme().style} ${settings.padding}`}
-                  >
-                    {/* MAC WINDOW HEADER */}
-                    <div className={`flex-shrink-0 flex items-center justify-between px-4 py-3 rounded-t-lg relative h-10 backdrop-blur-sm ${getActiveTheme().headerBg} border-b ${getActiveTheme().isLight ? 'border-black/10' : 'border-white/10'}`}>
-                      <div className="flex gap-1.5">
-                        <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-red-400' : 'bg-red-500'} inline-block`} />
-                        <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-yellow-400' : 'bg-yellow-500'} inline-block`} />
-                        <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-green-400' : 'bg-green-500'} inline-block`} />
-                      </div>
-                      {!isPro && (
-                        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1 text-sm font-mono ${getActiveTheme().windowText}`}>
-                          <span>code</span>
-                          <span className={getActiveTheme().isLight ? 'text-orange-600' : 'text-orange-500'}>to</span>
-                          <span>post</span>
-                        </div>
-                      )}
-                      <span className={`text-xs font-mono ${getActiveTheme().windowText}`}>{displayFilename}</span>
-                    </div>
-                    
-                    {/* CODE AREA */}
-                    <div className={`flex-grow overflow-y-auto rounded-b-lg backdrop-blur-sm ${getActiveTheme().codeBg} font-mono text-sm`}>
-                      {code.split('\n').map((line, i) => (
-                        <div key={i} className={`flex hover:${getActiveTheme().isLight ? 'bg-black/5' : 'bg-white/5'} -mx-6 px-6 ${getActiveTheme().text}`}>
-                          {settings.showLines && (
-                            <span className={`w-8 text-right pr-4 select-none text-xs shrink-0 leading-6 ${getActiveTheme().isLight ? 'opacity-30' : 'opacity-40'}`}>{i + 1}</span>
-                          )}
-                          <span className="whitespace-pre leading-6">{line}</span>
-                        </div>
-                      ))}
-                      <div className="h-6" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
+              <span className="whitespace-pre leading-6">{line}</span>
+            </div>
+          ))}
+          <div className="h-6" />
+        </div>
+      </div>
+    )}
+  </div>
+</TabsContent>
 
             {/* CAPTION TAB */}
             <TabsContent value="caption" className="flex flex-1 flex-col rounded-lg border border-white/10 bg-zinc-950/50 p-4 mt-0 min-h-0 overflow-auto">
@@ -901,12 +947,12 @@ export default function ToolUI({
             {/* AUTOPOST TAB (NEW!) */}
             <TabsContent value="autopost" className="flex flex-1 flex-col rounded-lg border border-white/10 bg-zinc-950/50 p-4 mt-0 min-h-0 overflow-auto">
               <AutoPostSection 
-              caption={caption}
-              isPro={isPro}
-              userId={userId}
-              onLockedClick={() => setShowPaywall(true)}
-              exportRef={exportRef}
-            />
+                caption={caption}
+                isPro={isPro}
+                userId={userId}
+                onLockedClick={() => setShowPaywall(true)}
+                exportRef={exportRef}
+              />
             </TabsContent>
           </Tabs>
 
