@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -37,9 +37,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/app?error=token_exchange_failed`);
     }
 
+    // USE SERVICE ROLE KEY TO BYPASS RLS (Safe for backend OAuth callbacks)
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("Missing SUPABASE_SERVICE_ROLE_KEY");
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/app?error=server_config`);
+    }
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
     // Store tokens in Supabase
-    const supabase = await createClient();
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("social_connections")
       .upsert({
         user_id: userId,
@@ -48,11 +58,11 @@ export async function GET(request: NextRequest) {
         refresh_token: tokens.refresh_token,
         expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
         connected_at: new Date().toISOString(),
-      });
+      }, { onConflict: 'user_id,platform' }); // Tells Supabase exactly how to handle duplicates
 
     if (error) {
-      console.error("Supabase upsert error:", error);
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/app?error=db_error`);
+      console.error("Supabase upsert error:", error.message);
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/app?error=db_error&details=${error.message}`);
     }
 
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/app?connected=twitter`);
