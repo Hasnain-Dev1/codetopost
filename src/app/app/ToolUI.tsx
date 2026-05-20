@@ -334,13 +334,33 @@ function AutoPostSection({
 
   const canPost = caption && caption.length > 0 && !caption.includes("Click 'Generate AI Caption'");
 
+  // CHECK SUPABASE FOR EXISTING CONNECTIONS ON MOUNT
+  useEffect(() => {
+    const checkConnections = async () => {
+      try {
+        const res = await fetch(`/api/autopost/status?userId=${userId}`);
+        const data = await res.json();
+        if (data.connections) {
+          setTwitterConnected(data.connections.includes("twitter"));
+          setLinkedinConnected(data.connections.includes("linkedin"));
+        }
+      } catch (err) {
+        console.error("Failed to check connection status");
+      }
+    };
+    checkConnections();
+  }, [userId]);
+
   const connectTwitter = async () => {
     if (!isPro) { onLockedClick(); return; }
+    // Save current code to localStorage before page reloads
+    localStorage.setItem("codetopost_code_backup", document.querySelector('textarea')?.value || "");
     window.location.href = `/api/autopost/twitter/connect?userId=${userId}`;
   };
 
   const connectLinkedin = async () => {
     if (!isPro) { onLockedClick(); return; }
+    localStorage.setItem("codetopost_code_backup", document.querySelector('textarea')?.value || "");
     window.location.href = `/api/autopost/linkedin/connect?userId=${userId}`;
   };
 
@@ -521,7 +541,17 @@ export default function ToolUI({
   userId: string; 
   isPro: boolean; 
 }) {
-  const [code, setCode] = useState(`// Paste your code here to see the magic happen...\nfunction hello() {\n  console.log("Auto-detect is working!");\n}`);
+  const [code, setCode] = useState(() => {
+    // Restore code if returning from OAuth redirect
+    if (typeof window !== "undefined") {
+      const backup = localStorage.getItem("codetopost_code_backup");
+      if (backup) {
+        localStorage.removeItem("codetopost_code_backup"); // Clean up
+        return backup;
+      }
+    }
+    return `// Paste your code here to see the magic happen...\nfunction hello() {\n  console.log("Auto-detect is working!");\n}`;
+  });
   const [language, setLanguage] = useState("auto");
   const [platform, setPlatform] = useState("twitter");
   const [caption, setCaption] = useState("");
