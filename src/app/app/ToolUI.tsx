@@ -465,16 +465,34 @@ function AutoPostSection({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        {/* TWITTER CARD */}
+                {/* TWITTER CARD */}
         <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-            </svg>
-            <span className="text-sm font-medium">X (Twitter)</span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+              <span className="text-sm font-medium">X (Twitter)</span>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-white/5">
+              Requires API Plan
+            </span>
           </div>
           
-          {!twitterConnected ? (
+          {twitterConnected ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Connected
+              </div>
+              <Button 
+                disabled={true}
+                className="w-full bg-zinc-800 text-zinc-500 text-xs h-9 cursor-not-allowed"
+              >
+                Coming Soon (Paid API)
+              </Button>
+            </div>
+          ) : (
             <Button 
               onClick={connectTwitter} 
               variant="outline" 
@@ -483,22 +501,6 @@ function AutoPostSection({
             >
               Connect Account
             </Button>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-xs text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Connected
-              </div>
-              <Button 
-                onClick={postToTwitter} 
-                disabled={!canPost || isPostingTwitter}
-                className="w-full bg-white text-black hover:bg-zinc-200 text-xs h-9 disabled:opacity-50"
-              >
-                {isPostingTwitter ? (
-                  <><svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Posting...</>
-                ) : "Post Now"}
-              </Button>
-            </div>
           )}
         </div>
 
