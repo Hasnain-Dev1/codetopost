@@ -4,7 +4,7 @@ export default function PrivacyPolicy() {
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Privacy Policy</h1>
         <div className="space-y-6 text-sm text-zinc-400 leading-relaxed">
-          <p><strong className="text-white">Last updated:</strong> May 21, 2024</p>
+          <p><strong className="text-white">Last updated:</strong> May 21, 2026</p>
           
           <h2 className="text-xl font-semibold text-white mt-8">1. Information We Collect</h2>
           <p>We collect your email address to authenticate your account via Supabase. If you connect Twitter or LinkedIn, we store your OAuth access tokens to enable AutoPost features.</p>
