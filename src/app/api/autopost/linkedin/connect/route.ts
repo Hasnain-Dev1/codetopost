@@ -8,15 +8,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing userId" }, { status: 400 });
   }
 
-  const clientId = process.env.LINKEDIN_CLIENT_ID!;
+  const clientId = process.env.LINKEDIN_CLIENT_ID;
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/autopost/linkedin/callback`;
-  const state = Buffer.from(JSON.stringify({ userId })).toString("base64url");
+  
+  // Secure state parameter
+  const state = Buffer.from(JSON.stringify({ userId, timestamp: Date.now() })).toString("base64url");
 
   const params = new URLSearchParams({
     response_type: "code",
-    client_id: clientId,
+    client_id: clientId || "",
     redirect_uri: redirectUri,
-    scope: "w_member_social openid profile",
+    scope: "openid profile w_member_social",
     state: state,
   });
 
