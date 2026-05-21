@@ -7,15 +7,13 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get("state");
 
   if (!code || !state) {
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/app?error=oauth_failed`);
+    return new Response("OAuth failed: Missing code or state", { status: 400 });
   }
 
   try {
-    // Decode state
     const stateData = JSON.parse(Buffer.from(state, "base64url").toString());
     const { userId, codeVerifier } = stateData;
 
-    // Exchange code for tokens
     const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
       method: "POST",
       headers: {
@@ -33,23 +31,15 @@ export async function GET(request: NextRequest) {
     const tokens = await tokenResponse.json();
 
     if (tokens.error) {
-      console.error("Twitter token error:", tokens);
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/app?error=token_exchange_failed`);
-    }
-
-    // USE SERVICE ROLE KEY TO BYPASS RLS (Safe for backend OAuth callbacks)
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error("Missing SUPABASE_SERVICE_ROLE_KEY");
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/app?error=server_config`);
+      return new Response(`Twitter error: ${tokens.error}`, { status: 500 });
     }
 
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Store tokens in Supabase
-    const { error } = await supabaseAdmin
+    await supabaseAdmin
       .from("social_connections")
       .upsert({
         user_id: userId,
@@ -58,16 +48,26 @@ export async function GET(request: NextRequest) {
         refresh_token: tokens.refresh_token,
         expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
         connected_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,platform' }); // Tells Supabase exactly how to handle duplicates
+      }, { onConflict: 'user_id,platform' });
 
-    if (error) {
-      console.error("Supabase upsert error:", error.message);
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/app?error=db_error&details=${error.message}`);
-    }
+    // RETURN HTML THAT CLOSES THE POPUP AND TELLS THE PARENT WINDOW WE ARE DONE!
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <body>
+          <script>
+            window.opener.postMessage('TWITTER_CONNECTED', '*');
+            window.close();
+          </script>
+          <p style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+            Connected successfully! You can close this tab.
+          </p>
+        </body>
+      </html>
+    `;
+    return new Response(html, { headers: { "Content-Type": "text/html" } });
 
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/app?connected=twitter`);
   } catch (error) {
-    console.error("Twitter callback error:", error);
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/app?error=unknown`);
+    return new Response("Unknown error occurred", { status: 500 });
   }
 }

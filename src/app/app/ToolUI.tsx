@@ -351,19 +351,51 @@ function AutoPostSection({
     checkConnections();
   }, [userId]);
 
+    // ADD THIS LISTENER INSIDE AutoPostSection, right under the other useEffect
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data === 'TWITTER_CONNECTED') {
+        setTwitterConnected(true);
+      }
+      if (event.data === 'LINKEDIN_CONNECTED') {
+        setLinkedinConnected(true);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
   const connectTwitter = async () => {
     if (!isPro) { onLockedClick(); return; }
-    // Save current code to localStorage before page reloads
-    localStorage.setItem("codetopost_code_backup", document.querySelector('textarea')?.value || "");
-    window.location.href = `/api/autopost/twitter/connect?userId=${userId}`;
+    // Open in a popup instead of redirecting!
+    const width = 600;
+    const height = 700;
+    const left = (window.innerWidth / 2) - (width / 2);
+    const top = (window.innerHeight / 2) - (height / 2);
+    
+    window.open(
+      `/api/autopost/twitter/connect?userId=${userId}`,
+      "TwitterOAuth",
+      `width=${width},height=${height},top=${top},left=${left}`
+    );
   };
 
   const connectLinkedin = async () => {
     if (!isPro) { onLockedClick(); return; }
-    localStorage.setItem("codetopost_code_backup", document.querySelector('textarea')?.value || "");
-    window.location.href = `/api/autopost/linkedin/connect?userId=${userId}`;
+    const width = 600;
+    const height = 700;
+    const left = (window.innerWidth / 2) - (width / 2);
+    const top = (window.innerHeight / 2) - (height / 2);
+
+    window.open(
+      `/api/autopost/linkedin/connect?userId=${userId}`,
+      "LinkedInOAuth",
+      `width=${width},height=${height},top=${top},left=${left}`
+    );
   };
 
+  
   const postToTwitter = async () => {
     if (!canPost || !twitterConnected) return;
     setIsPostingTwitter(true);
@@ -639,21 +671,19 @@ export default function ToolUI({
     
     const node = exportRef.current;
     const codeArea = node.querySelector('.flex-grow') as HTMLElement;
-    
-    // Save originals
     const origHeight = node.style.height;
     const origOverflow = codeArea?.style.overflow;
     
-    // 1. EXPAND & NUKE SCROLLBARS
     node.style.height = 'auto';
-    if (codeArea) {
-      codeArea.style.overflow = 'hidden'; // Kills both X and Y scrollbars completely
-    }
-    
+    if (codeArea) codeArea.style.overflow = 'hidden';
     await new Promise(res => setTimeout(res, 50));
 
     try {
-      const dataUrl = await toPng(node, { cacheBust: true, pixelRatio: 2 });
+      const dataUrl = await toPng(node, { 
+        cacheBust: true, 
+        pixelRatio: 2,
+        backgroundColor: undefined 
+      });
       const filename = customFilename.trim() ? `${customFilename.replace(/\.[^.]+$/, '')}.png` : "codetopost.png";
       const link = document.createElement("a");
       link.download = filename;
@@ -715,7 +745,11 @@ export default function ToolUI({
     await new Promise(res => setTimeout(res, 50));
 
     try {
-      const blob = await toBlob(node, { cacheBust: true, pixelRatio: 2 });
+      const blob = await toBlob(node, { 
+        cacheBust: true, 
+        pixelRatio: 2,
+        backgroundColor: undefined  
+      });
       if (blob) {
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
         setCopyImageSuccess(true);
