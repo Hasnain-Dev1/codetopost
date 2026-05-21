@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js"; // Changed to Admin client
 
 export async function POST(request: NextRequest) {
   try {
     const { caption, userId, imageBase64 } = await request.json();
 
-    // Get user's Twitter tokens
-    const supabase = await createClient();
+    // Use ADMIN client (bypasses RLS)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     const { data: connection, error: dbError } = await supabase
       .from("social_connections")
       .select("*")
@@ -23,7 +27,6 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(connection.expires_at);
 
     if (expiresAt < new Date()) {
-      // Refresh token
       const refreshResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
         method: "POST",
         headers: {
@@ -43,7 +46,6 @@ export async function POST(request: NextRequest) {
 
       accessToken = newTokens.access_token;
 
-      // Update tokens in DB
       await supabase
         .from("social_connections")
         .update({
@@ -54,11 +56,10 @@ export async function POST(request: NextRequest) {
         .eq("id", connection.id);
     }
 
-    // Upload media to Twitter (if image provided as base64)
+    // Upload media (Only works on Twitter Basic $100/mo plan)
     let mediaId: string | undefined;
 
     if (imageBase64) {
-      // Remove data URL prefix if present (e.g., "data:image/png;base64,")
       const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
       const uploadResponse = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
@@ -75,9 +76,8 @@ export async function POST(request: NextRequest) {
       
       if (uploadData.media_id_string) {
         mediaId = uploadData.media_id_string;
-      } else if (uploadData.errors) {
-        console.error("Twitter upload error:", uploadData.errors);
-        // Continue without image if upload fails
+      } else {
+        console.warn("Image upload failed (Requires Twitter Basic Plan). Posting text only.");
       }
     }
 
@@ -98,8 +98,10 @@ export async function POST(request: NextRequest) {
 
     const tweetData = await tweetResponse.json();
 
-    if (tweetData.errors) {
-      return NextResponse.json({ error: tweetData.errors[0].message }, { status: 400 });
+    if (tweetData.errors || !tweetData.data) {
+      const errorMsg = tweetData.errors?.[0]?.message || "Failed to create tweet.";
+      console.error("Tweet creation failed:", tweetData);
+      return NextResponse.json({ error: errorMsg }, { status: 400 });
     }
 
     return NextResponse.json({
