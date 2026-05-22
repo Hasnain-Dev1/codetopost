@@ -431,10 +431,22 @@ function AutoPostSection({
     setIsPostingLinkedin(true);
     setPostResult(null);
     try {
+      // Generate image from the export ref (JUST LIKE TWITTER)
+      let imageBase64: string | undefined;
+      
+      if (exportRef?.current) {
+        // Use pixelRatio 1 for LinkedIn to keep file size under 5MB limit!
+        const dataUrl = await toPng(exportRef.current, { 
+          cacheBust: true, 
+          pixelRatio: 1 
+        });
+        imageBase64 = dataUrl;
+      }
+
       const res = await fetch("/api/autopost/linkedin/post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caption, userId })
+        body: JSON.stringify({ caption, userId, imageBase64 })
       });
       const data = await res.json();
       setPostResult({ platform: "linkedin", success: res.ok, error: data.error });

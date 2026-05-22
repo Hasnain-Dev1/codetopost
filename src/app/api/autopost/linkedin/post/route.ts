@@ -100,9 +100,12 @@ export async function POST(request: NextRequest) {
             body: imageBuffer,
           });
         }
-      } catch (imgErr) {
-        console.error("LinkedIn image upload failed:", imgErr);
-        // Fallback to text-only if image upload fails
+      } catch (imgErr: any) {
+        console.error("LinkedIn image upload failed:", imgErr.message);
+        // STOP! Tell the user the image failed instead of posting text-only
+        return NextResponse.json({ 
+          error: `Image upload failed: ${imgErr.message}. Try shorter code or simpler theme.` 
+        }, { status: 500 });
       }
     }
 
