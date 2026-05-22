@@ -119,6 +119,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ⏳ CRITICAL FIX: Wait for LinkedIn to process the image
+    if (mediaAssetId) {
+      console.log("Waiting 3 seconds for LinkedIn to process the image asset...");
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+
     // STEP 3: Create the Post (With proper description and title)
     const postBody: any = {
       author: `urn:li:person:${connection.platform_user_id}`,
