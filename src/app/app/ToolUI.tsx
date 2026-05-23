@@ -426,7 +426,7 @@ function AutoPostSection({
     }
   };
 
-  const postToLinkedin = async () => {
+    const postToLinkedin = async () => {
     if (!canPost || !linkedinConnected) return;
     setIsPostingLinkedin(true);
     setPostResult(null);
@@ -435,11 +435,10 @@ function AutoPostSection({
       
       if (exportRef?.current) {
         const node = exportRef.current;
-        
-        // THE FIX: Get real pixel dimensions so html-to-image doesn't make a 0px image
         const width = node.scrollWidth;
         const height = node.scrollHeight;
         
+        // Force pixel dimensions so it doesn't generate a 0px image
         node.style.width = `${width}px`;
         node.style.height = `${height}px`;
 
@@ -450,10 +449,8 @@ function AutoPostSection({
           height: height 
         });
         
-        // Revert styles immediately
         node.style.width = "";
         node.style.height = "";
-        
         imageBase64 = dataUrl;
       }
 
