@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(connection.expires_at);
 
     if (expiresAt < new Date() && connection.refresh_token) {
-      const refreshResponse = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+      const refreshResponse = await fetch("https://www.linkedin.com/oauth/v1/accessToken", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
