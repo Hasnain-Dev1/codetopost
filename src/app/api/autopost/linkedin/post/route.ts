@@ -5,7 +5,6 @@ export async function POST(request: NextRequest) {
   try {
     const { caption, userId, imageBase64 } = await request.json();
 
-    // 1. Get tokens from DB
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -22,7 +21,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "LinkedIn not connected" }, { status: 400 });
     }
 
-    // 2. Refresh token if expired
     let accessToken = connection.access_token;
     const expiresAt = new Date(connection.expires_at);
 
@@ -63,31 +61,21 @@ export async function POST(request: NextRequest) {
 
     let mediaAssetId: string | undefined;
 
-    // 3. THE 3-STEP LINKEDIN IMAGE UPLOAD (Based on your research)
+    // STEP 1 & 2: KEEP OUR WORKING UPLOAD
     if (imageBase64) {
       try {
-        // Remove data URL prefix and convert to Buffer
         const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
         const imageBuffer = Buffer.from(base64Data, "base64");
 
-        // STEP 1: Register the upload with the EXACT recipe LinkedIn wants
-        const registerRes = await fetch("https://api.linkedin.com/v2/assets", {
+        const registerRes = await fetch("https://api.linkedin.com/v2/assets?action=registerUpload", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...linkedinHeaders,
-          },
+          headers: { "Content-Type": "application/json", ...linkedinHeaders },
           body: JSON.stringify({
             registerUploadRequest: {
               recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
               owner: `urn:li:person:${connection.platform_user_id}`,
-              supportedUploadMechanisms: ["SYNCHRONOUS_UPLOAD"], // THE MISSING PIECE!
-              serviceRelationships: [
-                {
-                  relationshipType: "OWNER",
-                  identifier: "urn:li:userGeneratedContent",
-                },
-              ],
+              supportedUploadMechanisms: ["SYNCHRONOUS_UPLOAD"],
+              serviceRelationships: [{ relationshipType: "OWNER", identifier: "urn:li:userGeneratedContent" }],
             },
           }),
         });
@@ -98,76 +86,63 @@ export async function POST(request: NextRequest) {
           const uploadUrl = registerData.value.uploadMechanism["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"].uploadUrl;
           mediaAssetId = registerData.value.asset;
 
-          // STEP 2: Upload the binary file (Explicitly set image/png)
-          await fetch(uploadUrl, {
+          const uploadRes = await fetch(uploadUrl, {
             method: "PUT",
-            headers: {
-              "Content-Type": "image/png", // EXPLICIT TYPE FIX
-              "Authorization": `Bearer ${accessToken}`,
-            },
+            headers: { "Content-Type": "image/png", "Authorization": `Bearer ${accessToken}` },
             body: imageBuffer,
           });
+
+          if (!uploadRes.ok) {
+            console.error("Upload failed:", uploadRes.status);
+            mediaAssetId = undefined; // Don't send broken image
+          }
         } else {
-          console.error("LinkedIn Register Failed:", JSON.stringify(registerData));
-          return NextResponse.json({ error: "Failed to register image with LinkedIn." }, { status: 500 });
+          console.error("Register failed:", JSON.stringify(registerData));
+          mediaAssetId = undefined;
         }
       } catch (imgErr: any) {
-        console.error("LinkedIn Image Upload Error:", imgErr.message);
-        return NextResponse.json({ 
-          error: `Image upload failed: ${imgErr.message}. Try a shorter code snippet.` 
-        }, { status: 500 });
+        console.error("Upload error:", imgErr.message);
+        mediaAssetId = undefined;
       }
     }
 
-    // ⏳ CRITICAL FIX: Wait for LinkedIn to process the image
+    // WAIT FOR LINKEDIN TO PROCESS
     if (mediaAssetId) {
-      console.log("Waiting 3 seconds for LinkedIn to process the image asset...");
       await new Promise(resolve => setTimeout(resolve, 3000));
     }
 
-    // STEP 3: Create the Post (With proper description and title)
+    // STEP 3: USE THE NEWER, CLEANER POST API FORMAT
     const postBody: any = {
       author: `urn:li:person:${connection.platform_user_id}`,
+      commentary: caption,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
       lifecycleState: "PUBLISHED",
-      specificContent: {
-        "com.linkedin.ugc.ShareContent": {
-          shareCommentary: {
-            text: caption,
-          },
-          shareMediaCategory: mediaAssetId ? "IMAGE" : "NONE",
-          ...(mediaAssetId && {
-            media: [
-              {
-                status: "READY",
-                description: {
-                  text: "Code snippet generated by CodeToPost",
-                },
-                media: mediaAssetId,
-                title: {
-                  text: "CodeToPost Image",
-                },
-              },
-            ],
-          }),
-        },
-      },
-      visibility: {
-        "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
-      },
     };
 
-    const postResponse = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+    // This is the new, simpler way to attach media!
+    if (mediaAssetId) {
+      postBody.content = {
+        media: {
+          title: "CodeToPost Image",
+          id: mediaAssetId,
+        },
+      };
+    }
+
+    const postResponse = await fetch("https://api.linkedin.com/v2/posts", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...linkedinHeaders,
-      },
+      headers: { "Content-Type": "application/json", ...linkedinHeaders },
       body: JSON.stringify(postBody),
     });
 
     if (!postResponse.ok) {
       const errorData = await postResponse.json();
-      console.error("LinkedIn Post Failed:", JSON.stringify(errorData));
+      console.error("Post Failed:", JSON.stringify(errorData));
       return NextResponse.json({ error: errorData.message || "Failed to create post" }, { status: postResponse.status });
     }
 
