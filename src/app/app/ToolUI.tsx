@@ -431,15 +431,29 @@ function AutoPostSection({
     setIsPostingLinkedin(true);
     setPostResult(null);
     try {
-      // Generate image from the export ref (JUST LIKE TWITTER)
       let imageBase64: string | undefined;
       
       if (exportRef?.current) {
-        // Use pixelRatio 1 for LinkedIn to keep file size under 5MB limit!
-        const dataUrl = await toPng(exportRef.current, { 
+        const node = exportRef.current;
+        
+        // THE FIX: Get real pixel dimensions so html-to-image doesn't make a 0px image
+        const width = node.scrollWidth;
+        const height = node.scrollHeight;
+        
+        node.style.width = `${width}px`;
+        node.style.height = `${height}px`;
+
+        const dataUrl = await toPng(node, { 
           cacheBust: true, 
-          pixelRatio: 1 
+          pixelRatio: 1,
+          width: width,
+          height: height 
         });
+        
+        // Revert styles immediately
+        node.style.width = "";
+        node.style.height = "";
+        
         imageBase64 = dataUrl;
       }
 
