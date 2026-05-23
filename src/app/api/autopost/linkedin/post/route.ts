@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (mediaAssetId) await new Promise(resolve => setTimeout(resolve, 3000));
+    if (mediaAssetId) await new Promise(resolve => setTimeout(resolve, 5000));
 
     // STEP 3
     const postRes = await fetch("https://api.linkedin.com/v2/ugcPosts", {
