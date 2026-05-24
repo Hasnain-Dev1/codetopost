@@ -465,26 +465,35 @@ function AutoPostSection({
         }
       }
 
-      // ATTEMPT AUTOMATIC POST (V1 Upload)
+      // ATTEMPT AUTOMATIC POST (Using FormData to bypass 1MB JSON limit)
+      const formData = new FormData();
+      formData.append("caption", caption);
+      formData.append("userId", userId);
+      if (imageBase64) formData.append("imageBase64", imageBase64);
+
       const res = await fetch("/api/autopost/linkedin/post", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caption, userId, imageBase64 })
+        body: formData, // Let the browser handle the headers
       });
-      const data = await res.json();
-      
-      if (data.success) {
-        postSuccess = true;
-      } else {
-        // AUTOPost failed? No problem!
-        // The manual backup download URL from the earlier blob creation will still be available.
-      }
 
-      setPostResult({ 
-        platform: "linkedin", 
-        success: postSuccess, 
-        error: postSuccess ? undefined : data.error 
-      });
+      // SAFETY CHECK: Prevent crashing if Next.js throws an HTML error page
+      if (!res.ok) {
+        const errorText = await res.text(); 
+        console.error("API Error:", errorText);
+        setPostResult({ platform: "linkedin", success: false, error: "Server rejected the request (Image too large?)" });
+      } else {
+        const data = await res.json();
+        
+        if (data.success) {
+          postSuccess = true;
+        }
+
+        setPostResult({ 
+          platform: "linkedin", 
+          success: postSuccess, 
+          error: postSuccess ? undefined : data.error 
+        });
+      }
 
     } catch (err) {
       // Even if fetch crashes, we still have the download URL!
