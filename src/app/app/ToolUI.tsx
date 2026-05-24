@@ -427,7 +427,7 @@ function AutoPostSection({
     }
   };
 
-     const postToLinkedin = async () => {
+      const postToLinkedin = async () => {
     if (!canPost || !linkedinConnected) return;
     setIsPostingLinkedin(true);
     setPostResult(null);
@@ -436,33 +436,41 @@ function AutoPostSection({
     setDownloadUrl("");
 
     try {
-      // Still generate the image for AutoPost
       let imageBase64: string | undefined;
       
       if (exportRef?.current) {
         const node = exportRef.current;
-        const width = node.scrollWidth;
-        const height = node.scrollHeight;
+        const codeArea = node.querySelector('.flex-grow') as HTMLElement;
         
-        node.style.width = `${width}px`;
-        node.style.height = `${height}px`;
+        // SAVE ORIGINAL STYLES
+        const origHeight = node.style.height;
+        const origOverflow = codeArea?.style.overflow;
+        
+        // APPLY WORKING EXPORT STYLES
+        node.style.height = 'auto';
+        if (codeArea) codeArea.style.overflow = 'hidden';
+        await new Promise(res => setTimeout(res, 50));
 
-        const dataUrl = await toPng(node, { 
-          cacheBust: true, 
-          pixelRatio: 2, // Bumped back to 2 for quality
-          width: width,
-          height: height,
-          backgroundColor: "#000000" // FORCE SOLID BLACK (Fixes LinkedIn silent drop)
-        });
-        
-        node.style.width = "";
-        node.style.height = "";
-        imageBase64 = dataUrl;
-        
-        // Also create a manual download link just in case!
-        const blob = await toBlob(node, { cacheBust: true, pixelRatio: 2 });
-        if (blob) {
-          setDownloadUrl(URL.createObjectURL(blob));
+        try {
+          const dataUrl = await toPng(node, { 
+            cacheBust: true, 
+            pixelRatio: 2,
+            backgroundColor: "#000000" 
+          });
+          imageBase64 = dataUrl;
+          
+          const blob = await toBlob(node, { 
+            cacheBust: true, 
+            pixelRatio: 2,
+            backgroundColor: "#000000" 
+          });
+          if (blob) {
+            setDownloadUrl(URL.createObjectURL(blob));
+          }
+        } finally {
+          // RESTORE ORIGINAL STYLES (Fixes the broken UI/Download bug)
+          node.style.height = origHeight;
+          if (codeArea) codeArea.style.overflow = origOverflow || 'auto';
         }
       }
 

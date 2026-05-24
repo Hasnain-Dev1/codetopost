@@ -80,20 +80,12 @@ export async function POST(request: NextRequest) {
         if (!uploadBinaryRes.ok) throw new Error(`Failed Step B: ${uploadBinaryRes.status}`);
 
         // STEP C: Wait for processing
-        console.log("Waiting 4 seconds for LinkedIn to process...");
         await new Promise(resolve => setTimeout(resolve, 4000)); 
 
-        // STEP D: GET THE MEDIA URN (THIS IS THE SECRET SAUCE)
-        // LinkedIn requires a digitalmediaMedia URN, not a digitalmediaAsset URN!
-        const assetLookupRes = await fetch(`https://api.linkedin.com/v2/assets/${assetUrn}`, {
-          headers: { "Authorization": `Bearer ${accessToken}` }
-        });
-        const assetLookupData = await assetLookupRes.json();
-        console.log("Step D (URN Lookup):", JSON.stringify(assetLookupData));
-
-        if (!assetLookupData.media) throw new Error("Failed to get Media URN");
-        
-        mediaId = assetLookupData.media; // NOW it's a urn:li:digitalmediaMedia:...
+        // STEP D: THE MAGIC URN FIX
+        // LinkedIn returns a digitalmediaAsset URN, but posting requires a digitalmediaMedia URN.
+        // We just swap the words. This is the standard workaround.
+        mediaId = assetUrn.replace("digitalmediaAsset", "digitalmediaMedia");
 
       } catch (err: any) {
         console.error("Upload Error:", err.message);
