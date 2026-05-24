@@ -63,15 +63,12 @@ export async function POST(request: NextRequest) {
         });
 
         const registerData = await registerRes.json();
-        console.log("LinkedIn Step A Response:", JSON.stringify(registerData));
+        console.log("Step A:", JSON.stringify(registerData));
         
-        if (!registerData.value || !registerData.value.asset) {
-          console.error("Failed to get Asset URN");
-          throw new Error("Failed to register upload with LinkedIn");
-        }
+        if (!registerData.value) throw new Error("Failed Step A");
 
         const uploadUrl = registerData.value.uploadMechanism["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"].uploadUrl;
-        mediaId = registerData.value.asset;
+        const assetUrn = registerData.value.asset; // This is the ASSET urn
 
         // STEP B: Upload Binary
         const uploadBinaryRes = await fetch(uploadUrl, {
@@ -80,15 +77,23 @@ export async function POST(request: NextRequest) {
           body: imageBuffer,
         });
 
-        console.log("LinkedIn Step B Upload Status:", uploadBinaryRes.status);
+        if (!uploadBinaryRes.ok) throw new Error(`Failed Step B: ${uploadBinaryRes.status}`);
 
-        if (!uploadBinaryRes.ok) {
-          throw new Error(`Failed to upload image binary (Status: ${uploadBinaryRes.status})`);
-        }
+        // STEP C: Wait for processing
+        console.log("Waiting 4 seconds for LinkedIn to process...");
+        await new Promise(resolve => setTimeout(resolve, 4000)); 
 
-        // STEP C: Wait for LinkedIn to process (Bumped to 5 seconds)
-        console.log("Waiting 5 seconds for LinkedIn to process image...");
-        await new Promise(resolve => setTimeout(resolve, 5000)); 
+        // STEP D: GET THE MEDIA URN (THIS IS THE SECRET SAUCE)
+        // LinkedIn requires a digitalmediaMedia URN, not a digitalmediaAsset URN!
+        const assetLookupRes = await fetch(`https://api.linkedin.com/v2/assets/${assetUrn}`, {
+          headers: { "Authorization": `Bearer ${accessToken}` }
+        });
+        const assetLookupData = await assetLookupRes.json();
+        console.log("Step D (URN Lookup):", JSON.stringify(assetLookupData));
+
+        if (!assetLookupData.media) throw new Error("Failed to get Media URN");
+        
+        mediaId = assetLookupData.media; // NOW it's a urn:li:digitalmediaMedia:...
 
       } catch (err: any) {
         console.error("Upload Error:", err.message);
@@ -96,8 +101,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // STEP D: Create Post
-    // NOTE: Removed "title" from the media array to prevent silent validation drops
+    // STEP E: Create Post
     const postBody: any = {
       author: `urn:li:person:${connection.platform_user_id}`,
       lifecycleState: "PUBLISHED",
@@ -124,7 +128,7 @@ export async function POST(request: NextRequest) {
 
     if (!postResponse.ok) {
       const errData = await postResponse.json();
-      console.error("LinkedIn Post Failed:", JSON.stringify(errData));
+      console.error("Post Failed:", JSON.stringify(errData));
       return NextResponse.json({ error: errData.message || "Post failed" }, { status: postResponse.status });
     }
 

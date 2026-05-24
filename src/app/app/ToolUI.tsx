@@ -449,9 +449,10 @@ function AutoPostSection({
 
         const dataUrl = await toPng(node, { 
           cacheBust: true, 
-          pixelRatio: 1,
+          pixelRatio: 2, // Bumped back to 2 for quality
           width: width,
-          height: height 
+          height: height,
+          backgroundColor: "#000000" // FORCE SOLID BLACK (Fixes LinkedIn silent drop)
         });
         
         node.style.width = "";
