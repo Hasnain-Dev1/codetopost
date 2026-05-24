@@ -3,7 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Read FormData instead of JSON (fixes the 1MB limit crash)
     const formData = await request.formData();
     const caption = formData.get("caption") as string;
     const userId = formData.get("userId") as string;
@@ -17,7 +16,6 @@ export async function POST(request: NextRequest) {
     let accessToken = connection.access_token;
     const expiresAt = new Date(connection.expires_at);
 
-    // 2. Refresh Token if expired
     if (expiresAt < new Date() && connection.refresh_token) {
       const res = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
         method: "POST",
@@ -41,13 +39,12 @@ export async function POST(request: NextRequest) {
 
     let mediaId: string | undefined;
 
-    // 3. THE OFFICIAL V2 3-STEP UPLOAD (V1 is dead)
     if (imageBase64) {
       try {
         const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
         const imageBuffer = Buffer.from(base64Data, "base64");
 
-        // STEP A: Tell LinkedIn we want to upload an image
+        // STEP A: Register Upload
         const registerRes = await fetch("https://api.linkedin.com/v2/assets?action=registerUpload", {
           method: "POST",
           headers: { 
@@ -66,32 +63,32 @@ export async function POST(request: NextRequest) {
         });
 
         const registerData = await registerRes.json();
+        console.log("LinkedIn Step A Response:", JSON.stringify(registerData));
         
-        if (!registerData.value) {
-          console.error("LinkedIn Step 1 Failed:", JSON.stringify(registerData));
+        if (!registerData.value || !registerData.value.asset) {
+          console.error("Failed to get Asset URN");
           throw new Error("Failed to register upload with LinkedIn");
         }
 
-        // STEP B: Get the upload URL and the Asset URN
         const uploadUrl = registerData.value.uploadMechanism["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"].uploadUrl;
-        mediaId = registerData.value.asset; // This is already a proper URN!
+        mediaId = registerData.value.asset;
 
-        // STEP C: Upload the actual image file to the URL LinkedIn gave us
+        // STEP B: Upload Binary
         const uploadBinaryRes = await fetch(uploadUrl, {
           method: "PUT",
           headers: { "Content-Type": "image/png" },
           body: imageBuffer,
         });
 
+        console.log("LinkedIn Step B Upload Status:", uploadBinaryRes.status);
+
         if (!uploadBinaryRes.ok) {
-          throw new Error("Failed to upload image binary to LinkedIn");
+          throw new Error(`Failed to upload image binary (Status: ${uploadBinaryRes.status})`);
         }
 
-        console.log("V2 Upload Success! Asset URN:", mediaId);
-
-        // STEP C2: CRITICAL - Wait for LinkedIn to process the image!
-        // If you post too fast, LinkedIn silently drops the image.
-        await new Promise(resolve => setTimeout(resolve, 3000)); 
+        // STEP C: Wait for LinkedIn to process (Bumped to 5 seconds)
+        console.log("Waiting 5 seconds for LinkedIn to process image...");
+        await new Promise(resolve => setTimeout(resolve, 5000)); 
 
       } catch (err: any) {
         console.error("Upload Error:", err.message);
@@ -99,7 +96,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. CREATE THE POST
+    // STEP D: Create Post
+    // NOTE: Removed "title" from the media array to prevent silent validation drops
     const postBody: any = {
       author: `urn:li:person:${connection.platform_user_id}`,
       lifecycleState: "PUBLISHED",
@@ -110,8 +108,7 @@ export async function POST(request: NextRequest) {
           media: mediaId ? [
             {
               status: "READY",
-              media: mediaId, // Use the URN directly from Step B
-              title: { text: "Code Snippet" }
+              media: mediaId, 
             }
           ] : []
         },
@@ -119,7 +116,6 @@ export async function POST(request: NextRequest) {
       visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
     };
 
-    // Use the official v2 endpoint
     const postResponse = await fetch("https://api.linkedin.com/v2/ugcPosts", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${accessToken}` },
