@@ -88,6 +88,11 @@ export async function POST(request: NextRequest) {
         }
 
         console.log("V2 Upload Success! Asset URN:", mediaId);
+
+        // STEP C2: CRITICAL - Wait for LinkedIn to process the image!
+        // If you post too fast, LinkedIn silently drops the image.
+        await new Promise(resolve => setTimeout(resolve, 3000)); 
+
       } catch (err: any) {
         console.error("Upload Error:", err.message);
         return NextResponse.json({ error: "Image upload failed: " + err.message }, { status: 500 });
