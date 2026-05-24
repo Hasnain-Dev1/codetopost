@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // 1. FIX: Correct Token Refresh Endpoint URL
     if (expiresAt < new Date() && connection.refresh_token) {
-      const res = await fetch("https://linkedin.com", {
+      const res = await fetch("https://api.linkedin.com/oauth/v2/accessToken", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         const imageBuffer = Buffer.from(cleanBase64, "base64");
 
         // STEP A: Register Asset via the Modern /v2/images API
-        const registerRes = await fetch("https://linkedin.com", {
+        const registerRes = await fetch("https://api.linkedin.com/oauth/v2/images", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...linkedinHeaders },
           body: JSON.stringify({
