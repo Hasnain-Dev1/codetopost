@@ -106,7 +106,7 @@ function CodeSkeleton({ theme }: { theme: ThemeConfig }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// EXPORT HUB (FIXED: Click outside, Loading states, All buttons work)
+// EXPORT HUB
 // ═══════════════════════════════════════════════════════════════
 function ExportHub({ 
   handleDownloadPng, 
@@ -128,26 +128,22 @@ function ExportHub({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // CLICK OUTSIDE TO CLOSE
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [isOpen]);
 
-  // CLOSE ON ESCAPE
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") setIsOpen(false);
     };
-
     if (isOpen) {
       document.addEventListener("keydown", handleEscape);
       return () => document.removeEventListener("keydown", handleEscape);
@@ -222,13 +218,12 @@ function ExportHub({
 }
 
 // ═══════════════════════════════════════════════════════════════
-// THEME CUSTOMIZER (FIXED: Mobile positioning)
+// THEME CUSTOMIZER
 // ═══════════════════════════════════════════════════════════════
 function ThemeCustomizer({ settings, setSettings, isPro, onLockedClick }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Click outside to close
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
@@ -243,7 +238,6 @@ function ThemeCustomizer({ settings, setSettings, isPro, onLockedClick }: any) {
 
   return (
     <>
-      {/* BUTTON - MOBILE SAFE POSITION */}
       <button 
         onClick={() => setIsOpen(!isOpen)} 
         className={`fixed z-50 w-12 h-12 bg-black/60 backdrop-blur-xl border border-white/20 rounded-full flex items-center justify-center text-white hover:bg-black/80 transition-all shadow-2xl
@@ -255,7 +249,6 @@ function ThemeCustomizer({ settings, setSettings, isPro, onLockedClick }: any) {
         </svg>
       </button>
       
-      {/* PANEL - MOBILE SAFE POSITION */}
       <div 
         ref={panelRef}
         className={`fixed z-50 w-72 bg-black/70 backdrop-blur-2xl border border-white/20 rounded-2xl p-3 shadow-2xl transition-all duration-300
@@ -310,7 +303,7 @@ function ThemeCustomizer({ settings, setSettings, isPro, onLockedClick }: any) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// AUTOPost COMPONENT (PRO ONLY)
+// AUTOPost COMPONENT — LINKEDIN WORKS, TWITTER COMING SOON
 // ═══════════════════════════════════════════════════════════════
 function AutoPostSection({ 
   caption, 
@@ -326,69 +319,58 @@ function AutoPostSection({
   exportRef: React.RefObject<HTMLDivElement | null>;
 }) { 
   
-  const [twitterConnected, setTwitterConnected] = useState(false);
   const [linkedinConnected, setLinkedinConnected] = useState(false);
-  const [isPostingTwitter, setIsPostingTwitter] = useState(false);
-  const [isPostingLinkedin, setIsPostingLinkedin] = useState(false);
-  const [postResult, setPostResult] = useState<{ platform: string; success: boolean; error?: string } | null>(null);
-  const [downloadUrl, setDownloadUrl] = useState<string>("");
+  const [isCheckingConnection, setIsCheckingConnection] = useState(true);
+  const [isPosting, setIsPosting] = useState(false);
+  const [postResult, setPostResult] = useState<{ success: boolean; error?: string; postId?: string } | null>(null);
+  const [resultTimer, setResultTimer] = useState<NodeJS.Timeout | null>(null);
 
-  const canPost = caption && caption.length > 0 && !caption.includes("Click 'Generate AI Caption'");
+  const hasCaption = caption && caption.length > 0 && !caption.includes("Click 'Generate AI Caption'");
 
-  // CHECK SUPABASE FOR EXISTING CONNECTIONS ON MOUNT
+  // ── Check connection status on mount ──
   useEffect(() => {
-    const checkConnections = async () => {
+    const checkConnection = async () => {
       try {
         const res = await fetch(`/api/autopost/status?userId=${userId}`);
         const data = await res.json();
         if (data.connections) {
-          setTwitterConnected(data.connections.includes("twitter"));
           setLinkedinConnected(data.connections.includes("linkedin"));
         }
       } catch (err) {
         console.error("Failed to check connection status");
+      } finally {
+        setIsCheckingConnection(false);
       }
     };
-    checkConnections();
+    checkConnection();
   }, [userId]);
 
-    // ADD THIS LISTENER INSIDE AutoPostSection, right under the other useEffect
+  // ── Listen for OAuth popup messages ──
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.data === 'TWITTER_CONNECTED') {
-        setTwitterConnected(true);
-      }
-      if (event.data === 'LINKEDIN_CONNECTED') {
+      if (event.data === "LINKEDIN_CONNECTED") {
         setLinkedinConnected(true);
       }
     };
-
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  const connectTwitter = async () => {
-    if (!isPro) { onLockedClick(); return; }
-    // Open in a popup instead of redirecting!
-    const width = 600;
-    const height = 700;
-    const left = (window.innerWidth / 2) - (width / 2);
-    const top = (window.innerHeight / 2) - (height / 2);
-    
-    window.open(
-      `/api/autopost/twitter/connect?userId=${userId}`,
-      "TwitterOAuth",
-      `width=${width},height=${height},top=${top},left=${left}`
-    );
+  // ── Clear result after 6 seconds ──
+  const showResult = (result: { success: boolean; error?: string; postId?: string }) => {
+    if (resultTimer) clearTimeout(resultTimer);
+    setPostResult(result);
+    const t = setTimeout(() => setPostResult(null), 6000);
+    setResultTimer(t);
   };
 
+  // ── Connect LinkedIn (popup) ──
   const connectLinkedin = async () => {
     if (!isPro) { onLockedClick(); return; }
     const width = 600;
     const height = 700;
     const left = (window.innerWidth / 2) - (width / 2);
     const top = (window.innerHeight / 2) - (height / 2);
-
     window.open(
       `/api/autopost/linkedin/connect?userId=${userId}`,
       "LinkedInOAuth",
@@ -396,122 +378,69 @@ function AutoPostSection({
     );
   };
 
-  
-  const postToTwitter = async () => {
-    if (!canPost || !twitterConnected) return;
-    setIsPostingTwitter(true);
+  // ── Post to LinkedIn ──
+  const postToLinkedin = async () => {
+    if (!hasCaption || !linkedinConnected || isPosting) return;
+    setIsPosting(true);
     setPostResult(null);
+
     try {
       // Generate image from the export ref
       let imageBase64: string | undefined;
-      
-      if (exportRef?.current) {
-        const dataUrl = await toPng(exportRef.current, { 
-          cacheBust: true, 
-          pixelRatio: 2 
-        });
-        imageBase64 = dataUrl;
-      }
 
-      const res = await fetch("/api/autopost/twitter/post", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caption, userId, imageBase64 })
-      });
-      const data = await res.json();
-      setPostResult({ platform: "twitter", success: res.ok, error: data.error });
-    } catch (err) {
-      setPostResult({ platform: "twitter", success: false, error: "Failed to post" });
-    } finally {
-      setIsPostingTwitter(false);
-    }
-  };
-
-      const postToLinkedin = async () => {
-    if (!canPost || !linkedinConnected) return;
-    setIsPostingLinkedin(true);
-    setPostResult(null);
-    
-    let postSuccess = false;
-    setDownloadUrl("");
-
-    try {
-      let imageBase64: string | undefined;
-      
       if (exportRef?.current) {
         const node = exportRef.current;
-        const codeArea = node.querySelector('.flex-grow') as HTMLElement;
-        
-        // SAVE ORIGINAL STYLES
+        const codeArea = node.querySelector(".flex-grow") as HTMLElement;
         const origHeight = node.style.height;
         const origOverflow = codeArea?.style.overflow;
-        
-        // APPLY WORKING EXPORT STYLES
-        node.style.height = 'auto';
-        if (codeArea) codeArea.style.overflow = 'hidden';
-        await new Promise(res => setTimeout(res, 50));
+
+        node.style.height = "auto";
+        if (codeArea) codeArea.style.overflow = "hidden";
+        await new Promise((res) => setTimeout(res, 50));
 
         try {
-          const dataUrl = await toPng(node, { 
-            cacheBust: true, 
+          const dataUrl = await toPng(node, {
+            cacheBust: true,
             pixelRatio: 2,
-            backgroundColor: "#000000" 
+            backgroundColor: "#000000",
           });
           imageBase64 = dataUrl;
-          
-          const blob = await toBlob(node, { 
-            cacheBust: true, 
-            pixelRatio: 2,
-            backgroundColor: "#000000" 
-          });
-          if (blob) {
-            setDownloadUrl(URL.createObjectURL(blob));
-          }
         } finally {
-          // RESTORE ORIGINAL STYLES (Fixes the broken UI/Download bug)
           node.style.height = origHeight;
-          if (codeArea) codeArea.style.overflow = origOverflow || 'auto';
+          if (codeArea) codeArea.style.overflow = origOverflow || "auto";
         }
       }
-
-      // ATTEMPT AUTOMATIC POST (Using FormData to bypass 1MB JSON limit)
-      const formData = new FormData();
-      formData.append("caption", caption);
-      formData.append("userId", userId);
-      if (imageBase64) formData.append("imageBase64", imageBase64);
 
       const res = await fetch("/api/autopost/linkedin/post", {
         method: "POST",
-        body: formData, // Let the browser handle the headers
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption, userId, imageBase64 }),
       });
 
-      // SAFETY CHECK: Prevent crashing if Next.js throws an HTML error page
       if (!res.ok) {
-        const errorText = await res.text(); 
-        console.error("API Error:", errorText);
-        setPostResult({ platform: "linkedin", success: false, error: "Server rejected the request (Image too large?)" });
+        const errText = await res.text();
+        console.error("LinkedIn API Error:", errText);
+        let errorMsg = "Post failed on LinkedIn";
+        try {
+          const errData = JSON.parse(errText);
+          errorMsg = errData.error || errorMsg;
+        } catch {
+          /* use default */
+        }
+        showResult({ success: false, error: errorMsg });
       } else {
         const data = await res.json();
-        
-        if (data.success) {
-          postSuccess = true;
-        }
-
-        setPostResult({ 
-          platform: "linkedin", 
-          success: postSuccess, 
-          error: postSuccess ? undefined : data.error 
-        });
+        showResult({ success: true, postId: data.postId });
       }
-
-    } catch (err) {
-      // Even if fetch crashes, we still have the download URL!
-      setPostResult({ platform: "linkedin", success: false, error: "Failed" });
+    } catch (err: any) {
+      console.error("Post to LinkedIn crashed:", err);
+      showResult({ success: false, error: "Network error — check your connection" });
     } finally {
-      setIsPostingLinkedin(false);
+      setIsPosting(false);
     }
   };
 
+  // ── PRO PAYWALL ──
   if (!isPro) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -520,7 +449,7 @@ function AutoPostSection({
         </div>
         <h3 className="text-lg font-bold mb-2">AutoPost is Pro Only</h3>
         <p className="text-sm text-zinc-500 mb-4 max-w-xs">
-          Automatically post your code images + captions to Twitter and LinkedIn with one click.
+          Automatically post your code images + captions to LinkedIn with one click.
         </p>
         <Button onClick={onLockedClick} className="bg-white text-black hover:bg-zinc-200 text-sm">
           Upgrade to Pro
@@ -529,25 +458,156 @@ function AutoPostSection({
     );
   }
 
+  // ── LOADING CONNECTION STATE ──
+  if (isCheckingConnection) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <svg className="animate-spin h-5 w-5 text-zinc-500 mb-3" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <span className="text-xs text-zinc-600">Checking connections...</span>
+      </div>
+    );
+  }
+
+  // ── MAIN AUTPOST UI ──
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center h-full">
-      <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mb-5 border border-white/5">
-        <span className="text-3xl">🚀</span>
+    <div className="flex flex-col gap-4 py-2">
+      {/* RESULT BANNER */}
+      {postResult && (
+        <div
+          className={`rounded-lg px-4 py-3 text-xs font-medium flex items-start gap-2.5 border transition-all ${
+            postResult.success
+              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
+              : "bg-red-500/10 border-red-500/20 text-red-300"
+          }`}
+        >
+          <span className="text-base leading-none mt-0.5">
+            {postResult.success ? "✅" : "❌"}
+          </span>
+          <div className="flex-1">
+            <p className="font-semibold">
+              {postResult.success ? "Posted to LinkedIn!" : "Post Failed"}
+            </p>
+            {postResult.success && postResult.postId && postResult.postId !== "Success" && (
+              <p className="text-[10px] opacity-60 mt-0.5 font-mono">Post ID: {postResult.postId}</p>
+            )}
+            {postResult.error && (
+              <p className="text-[11px] opacity-70 mt-0.5">{postResult.error}</p>
+            )}
+          </div>
+          <button
+            onClick={() => setPostResult(null)}
+            className="text-zinc-500 hover:text-white transition-colors shrink-0 mt-0.5"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* ─── LINKEDIN CARD ─── */}
+      <div className="rounded-xl border border-white/10 bg-zinc-900/50 overflow-hidden">
+        {/* Card Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#0A66C2]/20 flex items-center justify-center">
+              <svg className="w-4 h-4 text-[#0A66C2]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white leading-none">LinkedIn</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5">
+                {linkedinConnected ? "Connected" : "Not connected"}
+              </p>
+            </div>
+          </div>
+          {linkedinConnected ? (
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+              Connected
+            </span>
+          ) : (
+            <button
+              onClick={connectLinkedin}
+              className="text-[10px] font-semibold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors active:scale-95"
+            >
+              Connect
+            </button>
+          )}
+        </div>
+
+        {/* Card Body */}
+        <div className="px-4 py-3">
+          {!linkedinConnected ? (
+            <p className="text-xs text-zinc-600 text-center py-2">
+              Connect your LinkedIn account to enable auto-posting
+            </p>
+          ) : !hasCaption ? (
+            <p className="text-xs text-zinc-600 text-center py-2">
+              Generate a caption first to post
+            </p>
+          ) : (
+            <button
+              onClick={postToLinkedin}
+              disabled={isPosting}
+              className="w-full flex items-center justify-center gap-2 h-10 bg-[#0A66C2] hover:bg-[#004182] text-white text-xs font-semibold rounded-lg transition-all active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100"
+            >
+              {isPosting ? (
+                <>
+                  <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Posting to LinkedIn...
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
+                  Post to LinkedIn
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
-      <h3 className="text-lg font-bold mb-2 text-white">AutoPost is arriving soon</h3>
-      <p className="text-sm text-zinc-500 max-w-xs leading-relaxed">
-        We are building direct integrations for X (Twitter) and LinkedIn so you can post your beautiful code snippets in one click.
+
+      {/* ─── TWITTER/X CARD — COMING SOON ─── */}
+      <div className="rounded-xl border border-white/10 bg-zinc-900/50 overflow-hidden opacity-50">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center">
+              <svg className="w-4 h-4 text-zinc-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-zinc-500 leading-none">X (Twitter)</p>
+              <p className="text-[10px] text-zinc-700 mt-0.5">Not available</p>
+            </div>
+          </div>
+          <span className="text-[10px] font-semibold text-zinc-600 bg-zinc-800 px-2.5 py-1 rounded-full">
+            Coming Soon
+          </span>
+        </div>
+        <div className="px-4 py-3">
+          <p className="text-xs text-zinc-700 text-center py-2">
+            X integration is under development
+          </p>
+        </div>
+      </div>
+
+      {/* FOOTER NOTE */}
+      <p className="text-[10px] text-zinc-700 text-center mt-1">
+        Your code image is attached automatically • Posts are published publicly
       </p>
-      <div className="flex gap-3 mt-6">
-        <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-white/10 rounded-lg">
-          <svg className="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-          <span className="text-xs text-zinc-500 font-medium">Coming Soon</span>
-        </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-white/10 rounded-lg">
-          <svg className="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 2.063 0 1.139-.925 2.065-2.064 2.065 2.065 0 1.139-.925 2.065-2.064 2.064 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-          <span className="text-xs text-zinc-500 font-medium">Coming Soon</span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -565,11 +625,10 @@ export default function ToolUI({
   isPro: boolean; 
 }) {
   const [code, setCode] = useState(() => {
-    // Restore code if returning from OAuth redirect
     if (typeof window !== "undefined") {
       const backup = localStorage.getItem("codetopost_code_backup");
       if (backup) {
-        localStorage.removeItem("codetopost_code_backup"); // Clean up
+        localStorage.removeItem("codetopost_code_backup");
         return backup;
       }
     }
@@ -587,12 +646,10 @@ export default function ToolUI({
   const [customFilename, setCustomFilename] = useState("");
   const [showFilenameInput, setShowFilenameInput] = useState(false);
   
-  // Export states
   const [isExporting, setIsExporting] = useState(false);
   const [copyImageSuccess, setCopyImageSuccess] = useState(false);
   const [copyUrlSuccess, setCopyUrlSuccess] = useState(false);
   
-  // Skeleton state
   const [isRendering, setIsRendering] = useState(false);
   const renderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -605,7 +662,7 @@ export default function ToolUI({
       const res = await fetch("/api/lemon-squeezy/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }) // Uses the userId passed from props
+        body: JSON.stringify({ userId })
       });
       const data = await res.json();
       if (data.url) window.location.href = data.url;
@@ -618,11 +675,8 @@ export default function ToolUI({
 
   const getActiveTheme = () => ALL_THEMES[settings.bg] || ALL_THEMES.midnight;
   const displayLang = language === "auto" ? detectLanguage(code) : language;
-  
-  // Determine the displayed filename
   const displayFilename = customFilename.trim() || `script.${displayLang}`;
 
-  // SECURITY: Check if user can export
   const canExport = isPro || generationsLeft > 0;
   const isOutOfCredits = !isPro && generationsLeft <= 0;
 
@@ -630,8 +684,6 @@ export default function ToolUI({
     const val = e.target.value;
     setCode(val);
     setLineCount(val.split('\n').length);
-    
-    // Show skeleton while "rendering"
     setIsRendering(true);
     if (renderTimeoutRef.current) clearTimeout(renderTimeoutRef.current);
     renderTimeoutRef.current = setTimeout(() => setIsRendering(false), 150);
@@ -671,28 +723,21 @@ export default function ToolUI({
   };
 
   // ═══════════════════════════════════════════════════════════════
-  // EXPORT FUNCTIONS (ALL WORKING)
+  // EXPORT FUNCTIONS
   // ═══════════════════════════════════════════════════════════════
   
-    const handleDownloadPng = async () => {
+  const handleDownloadPng = async () => {
     if (!exportRef.current) return;
     setIsExporting(true);
-    
     const node = exportRef.current;
     const codeArea = node.querySelector('.flex-grow') as HTMLElement;
     const origHeight = node.style.height;
     const origOverflow = codeArea?.style.overflow;
-    
     node.style.height = 'auto';
     if (codeArea) codeArea.style.overflow = 'hidden';
     await new Promise(res => setTimeout(res, 50));
-
     try {
-      const dataUrl = await toPng(node, { 
-        cacheBust: true, 
-        pixelRatio: 2,
-        backgroundColor: undefined 
-      });
+      const dataUrl = await toPng(node, { cacheBust: true, pixelRatio: 2, backgroundColor: undefined });
       const filename = customFilename.trim() ? `${customFilename.replace(/\.[^.]+$/, '')}.png` : "codetopost.png";
       const link = document.createElement("a");
       link.download = filename;
@@ -712,16 +757,13 @@ export default function ToolUI({
   const handleDownloadSvg = async () => {
     if (!exportRef.current) return;
     setIsExporting(true);
-    
     const node = exportRef.current;
     const codeArea = node.querySelector('.flex-grow') as HTMLElement;
     const origHeight = node.style.height;
     const origOverflow = codeArea?.style.overflow;
-    
     node.style.height = 'auto';
     if (codeArea) codeArea.style.overflow = 'hidden';
     await new Promise(res => setTimeout(res, 50));
-
     try {
       const dataUrl = await toSvg(node, { cacheBust: true });
       const filename = customFilename.trim() ? `${customFilename.replace(/\.[^.]+$/, '')}.svg` : "codetopost.svg";
@@ -743,22 +785,15 @@ export default function ToolUI({
   const handleCopyImage = async () => {
     if (!exportRef.current) return;
     setIsExporting(true);
-    
     const node = exportRef.current;
     const codeArea = node.querySelector('.flex-grow') as HTMLElement;
     const origHeight = node.style.height;
     const origOverflow = codeArea?.style.overflow;
-    
     node.style.height = 'auto';
     if (codeArea) codeArea.style.overflow = 'hidden';
     await new Promise(res => setTimeout(res, 50));
-
     try {
-      const blob = await toBlob(node, { 
-        cacheBust: true, 
-        pixelRatio: 2,
-        backgroundColor: undefined  
-      });
+      const blob = await toBlob(node, { cacheBust: true, pixelRatio: 2, backgroundColor: undefined });
       if (blob) {
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
         setCopyImageSuccess(true);
@@ -776,10 +811,7 @@ export default function ToolUI({
   const handleCopyUrl = async () => {
     if (!exportRef.current) return;
     try {
-      const dataUrl = await toPng(exportRef.current, { 
-        cacheBust: true, 
-        pixelRatio: 1 
-      });
+      const dataUrl = await toPng(exportRef.current, { cacheBust: true, pixelRatio: 1 });
       await navigator.clipboard.writeText(dataUrl);
       setCopyUrlSuccess(true);
       setTimeout(() => setCopyUrlSuccess(false), 2000);
@@ -808,7 +840,7 @@ export default function ToolUI({
       </header>
 
       <div className="flex flex-col lg:flex-row min-h-0 flex-1 overflow-hidden">
-        {/* LEFT PANEL - INPUT */}
+        {/* LEFT PANEL */}
         <div className="flex w-full lg:w-1/2 flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-white/10 p-4 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-medium text-zinc-400">INPUT</h2>
@@ -857,12 +889,11 @@ export default function ToolUI({
           </Button>
         </div>
 
-        {/* RIGHT PANEL - PREVIEW */}
+        {/* RIGHT PANEL */}
         <div className="flex w-full lg:w-1/2 flex-col overflow-hidden p-4 sm:p-6 min-h-0 relative">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-medium text-zinc-400">LIVE PREVIEW</h2>
             
-            {/* SECURITY: Hide Export Hub entirely if out of credits */}
             {canExport ? (
               <ExportHub 
                 handleDownloadPng={handleDownloadPng}
@@ -899,86 +930,81 @@ export default function ToolUI({
 
             {/* IMAGE TAB */}
             <TabsContent value="image" className="relative flex flex-1 flex-col rounded-lg border border-dashed border-white/10 bg-zinc-950/50 mt-0 p-4 min-h-0 overflow-hidden">
-  
-  {/* THE EXPORT OVERLAY */}
-  {isExporting && (
-    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-lg">
-      <div className="flex flex-col items-center gap-3">
-        <svg className="animate-spin h-6 w-6 text-white" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-        <span className="text-xs text-zinc-300 font-medium">Exporting...</span>
-      </div>
-    </div>
-  )}
-
-  {/* CUSTOM FILENAME TOGGLE */}
-  <div className="flex items-center justify-between mb-3 shrink-0">
-    <button 
-      onClick={() => setShowFilenameInput(!showFilenameInput)}
-      className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
-    >
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-      </svg>
-      {showFilenameInput ? 'Hide filename' : 'Custom filename'}
-    </button>
-  </div>
-  
-  {showFilenameInput && (
-    <div className="mb-3 shrink-0">
-      <input
-        type="text"
-        placeholder={displayFilename}
-        value={customFilename}
-        onChange={(e) => setCustomFilename(e.target.value)}
-        className="w-full h-8 px-3 rounded-lg border border-white/10 bg-zinc-900 text-xs text-white placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
-      />
-    </div>
-  )}
-  
-  <div className="flex flex-1 min-h-0 items-center justify-center overflow-hidden p-4">
-    {isRendering ? (
-      <CodeSkeleton theme={getActiveTheme()} />
-    ) : (
-      <div 
-        ref={exportRef} 
-        className={`w-full max-w-2xl h-full rounded-xl transition-all duration-300 flex flex-col ${getActiveTheme().style} ${settings.padding}`}
-      >
-        {/* MAC WINDOW HEADER */}
-        <div className={`flex-shrink-0 flex items-center justify-between px-4 py-3 rounded-t-lg relative h-10 backdrop-blur-sm ${getActiveTheme().headerBg} border-b ${getActiveTheme().isLight ? 'border-black/10' : 'border-white/10'}`}>
-          <div className="flex gap-1.5">
-            <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-red-400' : 'bg-red-500'} inline-block`} />
-            <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-yellow-400' : 'bg-yellow-500'} inline-block`} />
-            <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-green-400' : 'bg-green-500'} inline-block`} />
-          </div>
-          {!isPro && (
-            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1 text-sm font-mono ${getActiveTheme().windowText}`}>
-              <span>code</span>
-              <span className={getActiveTheme().isLight ? 'text-orange-600' : 'text-orange-500'}>to</span>
-              <span>post</span>
-            </div>
-          )}
-          <span className={`text-xs font-mono ${getActiveTheme().windowText}`}>{displayFilename}</span>
-        </div>
-        
-        {/* CODE AREA */}
-        <div className={`flex-grow overflow-y-auto rounded-b-lg backdrop-blur-sm ${getActiveTheme().codeBg} font-mono text-sm`}>
-          {code.split('\n').map((line, i) => (
-            <div key={i} className={`flex hover:${getActiveTheme().isLight ? 'bg-black/5' : 'bg-white/5'} -mx-6 px-6 ${getActiveTheme().text}`}>
-              {settings.showLines && (
-                <span className={`w-8 text-right pr-4 select-none text-xs shrink-0 leading-6 ${getActiveTheme().isLight ? 'opacity-30' : 'opacity-40'}`}>{i + 1}</span>
+              {isExporting && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-lg">
+                  <div className="flex flex-col items-center gap-3">
+                    <svg className="animate-spin h-6 w-6 text-white" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <span className="text-xs text-zinc-300 font-medium">Exporting...</span>
+                  </div>
+                </div>
               )}
-              <span className="whitespace-pre leading-6">{line}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
-  </div>
-</TabsContent>
+
+              <div className="flex items-center justify-between mb-3 shrink-0">
+                <button 
+                  onClick={() => setShowFilenameInput(!showFilenameInput)}
+                  className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  {showFilenameInput ? 'Hide filename' : 'Custom filename'}
+                </button>
+              </div>
+              
+              {showFilenameInput && (
+                <div className="mb-3 shrink-0">
+                  <input
+                    type="text"
+                    placeholder={displayFilename}
+                    value={customFilename}
+                    onChange={(e) => setCustomFilename(e.target.value)}
+                    className="w-full h-8 px-3 rounded-lg border border-white/10 bg-zinc-900 text-xs text-white placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
+                  />
+                </div>
+              )}
+              
+              <div className="flex flex-1 min-h-0 items-center justify-center overflow-hidden p-4">
+                {isRendering ? (
+                  <CodeSkeleton theme={getActiveTheme()} />
+                ) : (
+                  <div 
+                    ref={exportRef} 
+                    className={`w-full max-w-2xl h-full rounded-xl transition-all duration-300 flex flex-col ${getActiveTheme().style} ${settings.padding}`}
+                  >
+                    <div className={`flex-shrink-0 flex items-center justify-between px-4 py-3 rounded-t-lg relative h-10 backdrop-blur-sm ${getActiveTheme().headerBg} border-b ${getActiveTheme().isLight ? 'border-black/10' : 'border-white/10'}`}>
+                      <div className="flex gap-1.5">
+                        <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-red-400' : 'bg-red-500'} inline-block`} />
+                        <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-yellow-400' : 'bg-yellow-500'} inline-block`} />
+                        <span className={`w-3 h-3 rounded-full ${getActiveTheme().isLight ? 'bg-green-400' : 'bg-green-500'} inline-block`} />
+                      </div>
+                      {!isPro && (
+                        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1 text-sm font-mono ${getActiveTheme().windowText}`}>
+                          <span>code</span>
+                          <span className={getActiveTheme().isLight ? 'text-orange-600' : 'text-orange-500'}>to</span>
+                          <span>post</span>
+                        </div>
+                      )}
+                      <span className={`text-xs font-mono ${getActiveTheme().windowText}`}>{displayFilename}</span>
+                    </div>
+                    
+                    <div className={`flex-grow overflow-y-auto rounded-b-lg backdrop-blur-sm ${getActiveTheme().codeBg} font-mono text-sm`}>
+                      {code.split('\n').map((line, i) => (
+                        <div key={i} className={`flex hover:${getActiveTheme().isLight ? 'bg-black/5' : 'bg-white/5'} -mx-6 px-6 ${getActiveTheme().text}`}>
+                          {settings.showLines && (
+                            <span className={`w-8 text-right pr-4 select-none text-xs shrink-0 leading-6 ${getActiveTheme().isLight ? 'opacity-30' : 'opacity-40'}`}>{i + 1}</span>
+                          )}
+                          <span className="whitespace-pre leading-6">{line}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
 
             {/* CAPTION TAB */}
             <TabsContent value="caption" className="flex flex-1 flex-col rounded-lg border border-white/10 bg-zinc-950/50 p-4 mt-0 min-h-0 overflow-auto">
@@ -1016,7 +1042,7 @@ export default function ToolUI({
               <p className="text-xs text-zinc-600">Adjusts caption tone automatically.</p>
             </TabsContent>
 
-            {/* AUTOPOST TAB (NEW!) */}
+            {/* AUTOPOST TAB */}
             <TabsContent value="autopost" className="flex flex-1 flex-col rounded-lg border border-white/10 bg-zinc-950/50 p-4 mt-0 min-h-0 overflow-auto">
               <AutoPostSection 
                 caption={caption}
@@ -1037,7 +1063,7 @@ export default function ToolUI({
         </div>
       </div>
 
-      {/* PAYWALL - UN-CHEATABLE VERSION */}
+      {/* PAYWALL */}
       {showPaywall && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-zinc-950 border border-white/10 rounded-xl p-8 max-w-sm text-center w-full">
