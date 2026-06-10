@@ -530,130 +530,24 @@ function AutoPostSection({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-                {/* TWITTER CARD */}
-        <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-              </svg>
-              <span className="text-sm font-medium">X (Twitter)</span>
-            </div>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-white/5">
-              Requires API Plan
-            </span>
-          </div>
-          
-          {twitterConnected ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-xs text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Connected
-              </div>
-              <Button 
-                disabled={true}
-                className="w-full bg-zinc-800 text-zinc-500 text-xs h-9 cursor-not-allowed"
-              >
-                Coming Soon (Paid API)
-              </Button>
-            </div>
-          ) : (
-            <Button 
-              onClick={connectTwitter} 
-              variant="outline" 
-              size="sm" 
-              className="w-full border-white/20 text-xs hover:bg-zinc-800"
-            >
-              Connect Account
-            </Button>
-          )}
+    <div className="flex flex-col items-center justify-center py-16 text-center h-full">
+      <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mb-5 border border-white/5">
+        <span className="text-3xl">🚀</span>
+      </div>
+      <h3 className="text-lg font-bold mb-2 text-white">AutoPost is arriving soon</h3>
+      <p className="text-sm text-zinc-500 max-w-xs leading-relaxed">
+        We are building direct integrations for X (Twitter) and LinkedIn so you can post your beautiful code snippets in one click.
+      </p>
+      <div className="flex gap-3 mt-6">
+        <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-white/10 rounded-lg">
+          <svg className="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          <span className="text-xs text-zinc-500 font-medium">Coming Soon</span>
         </div>
-
-                {/* LINKEDIN CARD */}
-        <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 2.063 0 1.139-.925 2.065-2.064 2.065 2.065 0 1.139-.925 2.065-2.064 2.064 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-            </svg>
-            <span className="text-sm font-medium">LinkedIn</span>
-          </div>
-          
-          {!linkedinConnected ? (
-            <Button 
-              onClick={connectLinkedin} 
-              variant="outline" 
-              size="sm" 
-              className="w-full border-white/20 text-xs hover:bg-zinc-800"
-            >
-              Connect Account
-            </Button>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-xs text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Connected
-              </div>
-              <Button 
-                onClick={postToLinkedin} 
-                disabled={!canPost || isPostingLinkedin}
-                className="w-full bg-white text-black hover:bg-zinc-200 text-xs h-9 disabled:opacity-50"
-              >
-                {isPostingLinkedin ? (
-                  <><svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Posting...</>
-                ) : "Post Now"}
-              </Button>
-              
-              {/* THE BULLETPROOF BACKUP */}
-              {!isPostingLinkedin && !postResult?.success && (
-                <div className="mt-3 p-3 rounded-lg bg-zinc-800/50 border border-white/5 text-center">
-                  <p className="text-[11px] text-zinc-400 mb-2">AutoPost failed? No problem!</p>
-                  <Button 
-                    onClick={() => downloadUrl && window.open(downloadUrl, '_blank')}
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full border-white/10 text-xs hover:bg-zinc-700 text-white"
-                    disabled={!downloadUrl}
-                  >
-                    📥 Download Image
-                  </Button>
-                </div>
-              )}
-
-              {/* POST RESULT TOAST */}
-              {postResult && (
-                <div className={`rounded-lg p-3 text-sm flex items-center gap-2 ${postResult.success ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
-                  {postResult.success ? '✅' : '❌'}
-                  <span>
-                    {postResult.success 
-                      ? "Posted to LinkedIn successfully!" 
-                      : postResult.error || "Failed to post."}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+        <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-white/10 rounded-lg">
+          <svg className="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 2.063 0 1.139-.925 2.065-2.064 2.065 2.065 0 1.139-.925 2.065-2.064 2.064 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          <span className="text-xs text-zinc-500 font-medium">Coming Soon</span>
         </div>
       </div>
-
-      {/* POST RESULT TOAST */}
-      {postResult && (
-        <div className={`rounded-lg p-3 text-sm flex items-center gap-2 ${postResult.success ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
-          {postResult.success ? '✅' : '❌'}
-          <span>
-            {postResult.success 
-              ? `Posted to ${postResult.platform} successfully!` 
-              : postResult.error || `Failed to post to ${postResult.platform}`}
-          </span>
-        </div>
-      )}
-
-      {!canPost && (
-        <p className="text-xs text-zinc-600 text-center">
-          Generate a caption first to enable posting
-        </p>
-      )}
     </div>
   );
 }
@@ -703,6 +597,24 @@ export default function ToolUI({
   const renderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const exportRef = useRef<HTMLDivElement>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
+  const handleLemonCheckout = async () => {
+    setIsCheckingOut(true);
+    try {
+      const res = await fetch("/api/lemon-squeezy/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }) // Uses the userId passed from props
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
 
   const getActiveTheme = () => ALL_THEMES[settings.bg] || ALL_THEMES.midnight;
   const displayLang = language === "auto" ? detectLanguage(code) : language;
