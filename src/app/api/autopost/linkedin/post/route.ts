@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// Helper: wait ms
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export async function POST(request: NextRequest) {
   try {
     const { caption, userId, imageBase64 } = await request.json();
@@ -28,19 +31,16 @@ export async function POST(request: NextRequest) {
     // 1. REFRESH TOKEN IF EXPIRED
     if (expiresAt < new Date() && connection.refresh_token) {
       console.log("[LinkedIn] Token expired, refreshing...");
-      const res = await fetch(
-        "https://www.linkedin.com/oauth/v2/accessToken",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "refresh_token",
-            refresh_token: connection.refresh_token,
-            client_id: process.env.LINKEDIN_CLIENT_ID!,
-            client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
-          }),
-        }
-      ).then((r) => r.json());
+      const res = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: connection.refresh_token,
+          client_id: process.env.LINKEDIN_CLIENT_ID!,
+          client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
+        }),
+      }).then((r) => r.json());
 
       if (res.error) {
         console.error("[LinkedIn] Refresh failed:", res.error_description || res.error);
@@ -59,28 +59,32 @@ export async function POST(request: NextRequest) {
           expires_at: new Date(Date.now() + res.expires_in * 1000).toISOString(),
         })
         .eq("id", connection.id);
-      console.log("[LinkedIn] Token refreshed successfully");
+      console.log("[LinkedIn] Token refreshed");
     }
 
     const authorUrn = `urn:li:person:${connection.platform_user_id}`;
     let assetUrn: string | undefined;
 
-    // 2. IMAGE UPLOAD (REGISTER → UPLOAD BINARY)
+    const API_HEADERS = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      "LinkedIn-Version": "202601",
+      "X-Restli-Protocol-Version": "2.0.0",
+    };
+
+    // 2. IMAGE UPLOAD
     if (imageBase64) {
       try {
         const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
         const imageBuffer = Buffer.from(base64Data, "base64");
-        console.log("[LinkedIn] Image buffer size:", (imageBuffer.length / 1024 / 1024).toFixed(2), "MB");
+        console.log("[LinkedIn] Image size:", (imageBuffer.length / 1024).toFixed(1), "KB");
 
         // STEP A: Register upload intent
         const registerRes = await fetch(
           "https://api.linkedin.com/rest/images?action=initializeUpload",
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
-            },
+            headers: API_HEADERS,
             body: JSON.stringify({
               initializeUploadRequest: {
                 owner: authorUrn,
@@ -90,11 +94,9 @@ export async function POST(request: NextRequest) {
         );
 
         const registerText = await registerRes.text();
-        console.log("[LinkedIn] Register response status:", registerRes.status);
-        console.log("[LinkedIn] Register response body:", registerText);
+        console.log("[LinkedIn] Register status:", registerRes.status, "body:", registerText);
 
         if (!registerRes.ok) {
-          console.error("[LinkedIn] Image registration failed:", registerText);
           return NextResponse.json(
             { error: "Image registration failed: " + registerText },
             { status: registerRes.status }
@@ -104,18 +106,18 @@ export async function POST(request: NextRequest) {
         const registerData = JSON.parse(registerText);
 
         if (!registerData.value?.uploadUrl || !registerData.value?.image) {
-          console.error("[LinkedIn] Missing uploadUrl or image URN in response:", registerData);
+          console.error("[LinkedIn] Bad register response:", JSON.stringify(registerData));
           return NextResponse.json(
-            { error: "Invalid registration response from LinkedIn" },
+            { error: "Invalid registration response" },
             { status: 500 }
           );
         }
 
         const uploadUrl = registerData.value.uploadUrl;
         assetUrn = registerData.value.image;
-        console.log("[LinkedIn] Upload URL received, asset URN:", assetUrn);
+        console.log("[LinkedIn] Got upload URL, asset URN:", assetUrn);
 
-        // STEP B: Upload binary image via PUT
+        // STEP B: Upload binary
         const uploadRes = await fetch(uploadUrl, {
           method: "PUT",
           headers: {
@@ -125,30 +127,32 @@ export async function POST(request: NextRequest) {
           body: imageBuffer,
         });
 
-        console.log("[LinkedIn] Binary upload status:", uploadRes.status);
+        console.log("[LinkedIn] Upload status:", uploadRes.status);
 
         if (!uploadRes.ok) {
-          const uploadErrText = await uploadRes.text();
-          console.error("[LinkedIn] Binary upload failed:", uploadErrText);
+          const errText = await uploadRes.text();
+          console.error("[LinkedIn] Upload failed:", errText);
           return NextResponse.json(
-            { error: "Image upload failed: " + uploadErrText },
+            { error: "Image upload failed: " + errText },
             { status: uploadRes.status }
           );
         }
 
-        console.log("[LinkedIn] Image uploaded successfully");
+        // ⭐ STEP C: WAIT for LinkedIn to process the image
+        console.log("[LinkedIn] Image uploaded, waiting 3s for processing...");
+        await sleep(3000);
+        console.log("[LinkedIn] Proceeding to create post");
+
       } catch (err: any) {
-        console.error("[LinkedIn] Upload logic crashed:", err.message);
+        console.error("[LinkedIn] Upload crashed:", err.message);
         return NextResponse.json(
           { error: "Image upload crashed: " + err.message },
           { status: 500 }
         );
       }
-    } else {
-      console.log("[LinkedIn] No image provided, posting text-only");
     }
 
-    // 3. CREATE THE POST
+    // 3. CREATE POST
     const postBody: any = {
       author: authorUrn,
       commentary: caption,
@@ -167,41 +171,33 @@ export async function POST(request: NextRequest) {
           id: assetUrn,
         },
       };
+      console.log("[LinkedIn] Attaching image URN:", assetUrn);
     }
 
-    console.log("[LinkedIn] Creating post...", JSON.stringify(postBody, null, 2));
+    console.log("[LinkedIn] Creating post...");
 
     const postResponse = await fetch("https://api.linkedin.com/rest/posts", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        "X-Restli-Protocol-Version": "2.0.0",
-        "LinkedIn-Version": "202601",
-      },
+      headers: API_HEADERS,
       body: JSON.stringify(postBody),
     });
 
-    const postResponseText = await postResponse.text();
-    console.log("[LinkedIn] Post response status:", postResponse.status);
-    console.log("[LinkedIn] Post response body:", postResponseText);
+    const postText = await postResponse.text();
+    console.log("[LinkedIn] Post status:", postResponse.status, "body:", postText);
 
     if (!postResponse.ok) {
-      console.error("[LinkedIn] Post creation failed:", postResponseText);
       return NextResponse.json(
-        { error: "Post failed: " + postResponseText },
+        { error: "Post failed: " + postText },
         { status: postResponse.status }
       );
     }
 
-    const createdPostUrn =
-      postResponse.headers.get("x-linkedin-id") || "Success";
+    const postId = postResponse.headers.get("x-linkedin-id") || "Success";
+    console.log("[LinkedIn] Post created! ID:", postId);
 
-    console.log("[LinkedIn] Post created! URN:", createdPostUrn);
-
-    return NextResponse.json({ success: true, postId: createdPostUrn });
+    return NextResponse.json({ success: true, postId });
   } catch (err: any) {
-    console.error("[LinkedIn] Global error:", err.message, err.stack);
+    console.error("[LinkedIn] Global error:", err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
