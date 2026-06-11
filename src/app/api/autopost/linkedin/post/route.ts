@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
         "X-Restli-Protocol-Version": "2.0.0",
-        
+        "LinkedIn-Version": "202601",
       },
       body: JSON.stringify(postBody),
     });
